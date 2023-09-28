@@ -33,7 +33,7 @@ static int CLIENT_ID;
 #define CONFIG_BROKER_URL "mqtt://broker.hivemq.com"
 
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
-#define TOPIC_PUBLISH "/topic/sedt"
+//#define TOPIC_PUBLISH "/topic/sedt"
 
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
 static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n" CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
@@ -71,9 +71,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        msg_id = esp_mqtt_client_subscribe(client, TOPIC_SUBSCRIBE, 0);
-        ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-        break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
         break;
@@ -82,9 +79,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-        break;
-    case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
@@ -130,10 +124,11 @@ static void mqtt_app_start(void)
     esp_mqtt_client_start(client);
     
     /* TODO: Remove */
-    while (true) {
-        int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, "data-while", 0, 0, 0);
+    while (true) 
+	{
+        int msg_id = esp_mqtt_client_subscribe(client, TOPIC_SUBSCRIBE, 0);
         int delay = 1000;
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
+        ESP_LOGI(TAG, "subscribe successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
         vTaskDelay(delay / portTICK_PERIOD_MS);
     }
 }
