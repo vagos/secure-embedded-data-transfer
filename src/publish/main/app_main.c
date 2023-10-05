@@ -25,9 +25,13 @@
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
 #include <sys/param.h>
+#include "ring_buffer.h"
+
 
 static const char *TAG = "SEDT";
 static int CLIENT_ID;
+static const int MQTT_RING_SIZE = 10;
+static RING_BUFFER_T *mqtt_ring_buffer = NULL;
 
 #undef CONFIG_BROKER_URL
 #define CONFIG_BROKER_URL "mqtt://broker.hivemq.com"
@@ -67,7 +71,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     ESP_LOGD(TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
-    int msg_id;
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
@@ -106,7 +109,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-static void mqtt_app_start(void)
+static void mqtt_app_start(void *arg)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
@@ -121,14 +124,47 @@ static void mqtt_app_start(void)
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
     
+    MIC_DATA_T mqtt_msg_buffer[MQTT_RING_SIZE];
+    memset(&mqtt_msg_buffer,0,sizeof(MIC_DATA_T) * MQTT_RING_SIZE);
+
     /* TODO: Remove */
     while (true) 
 	{
-        int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, "data-while", 0, 0, 0);
-        int delay = 1000;
-        ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
-        vTaskDelay(delay / portTICK_PERIOD_MS);
+        int nframe = ring_buffer_pop(mqtt_ring_buffer, (uint8_t *)&mqtt_msg_buffer[0], sizeof(MIC_DATA_T) * MQTT_RING_SIZE);
+        esp_mqtt_client_publish(client, TOPIC_PUBLISH, "hello", 0, 0, 0);
+
+		if(nframe > 0)
+		{
+			for(int i=0; i < nframe; i++)
+			{
+                //&mqtt_msg[i]
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)mqtt_msg_buffer[i].data, 0, 0, 0);
+                ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
+			}  
+            ESP_LOGI(TAG, "sent publish successful\r\n");
+		}
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
+}
+static void data_app_start(void *arg)
+{
+    MIC_DATA_T mic_data;
+    char buf[] = "23"; 
+    ESP_LOGI(TAG, "data_app_start\r\n");
+
+    while(true)
+    {
+        memset(&mic_data,0,sizeof(MIC_DATA_T));
+        memcpy(mic_data.data, buf, sizeof(buf));
+        mic_data.len = sizeof(buf);
+
+        ring_buffer_push(mqtt_ring_buffer, mic_data.data, mic_data.len);
+
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+
+    for(;;);
+
 }
 
 void app_main(void)
@@ -159,5 +195,11 @@ void app_main(void)
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
 
-    mqtt_app_start();
+    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE, 3);
+
+    xTaskCreate(data_app_start, "data_task", 4096, NULL, 2, NULL);
+    mqtt_app_start(NULL);
+    /* xTaskCreate(mqtt_app_start, "mqtt_publish", 2048, NULL, 2, &publish_task_handle); */
+    vTaskStartScheduler();
+	while(1);
 }
