@@ -25,9 +25,15 @@
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
 #include <sys/param.h>
+#include "ring_buffer.h"
+
 
 static const char *TAG = "SEDT";
 static int CLIENT_ID;
+static const int MQTT_RING_SIZE = 64;
+static RING_BUFFER_T *mqtt_ring_buffer = NULL;
+static TaskHandle_t publish_task_handle = NULL;
+static TaskHandle_t data_task_handle = NULL;
 
 #undef CONFIG_BROKER_URL
 #define CONFIG_BROKER_URL "mqtt://broker.hivemq.com"
@@ -105,8 +111,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     }
 }
+static void push_mqtt_data(MQTT_MSG_T data)
+{
+	ring_buffer_push(mqtt_ring_buffer, data.mic_data, data.mic_length);
+}
 
-static void mqtt_app_start(void)
+static void mqtt_app_start(void *arg)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
@@ -120,15 +130,53 @@ static void mqtt_app_start(void)
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
-    
+    MQTT_MSG_T mqtt_msg;
+    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE,sizeof(MQTT_MSG_T));
+    memset(&mqtt_msg,0,sizeof(MQTT_MSG_T));
     /* TODO: Remove */
     while (true) 
 	{
+        int nframe = ring_buffer_pop(mqtt_ring_buffer, mqtt_msg.mic_data, sizeof(MQTT_MSG_T));
+        esp_mqtt_client_publish(client, TOPIC_PUBLISH, "hello", 0, 0, 0);
+        #if 0
+		if(nframe > 0)
+		{
+			for(int i=0;i<nframe;i++)
+			{
+                //&mqtt_msg[i]
+				int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, "hello", 0, 0, 0);
+                ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
+                //int delay = 1000;
+                //vTaskDelay(delay / portTICK_PERIOD_MS);
+			}  
+            ESP_LOGI(TAG, "sent publish successful\r\n");
+		}
+        #endif
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        #if 0
         int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, "data-while", 0, 0, 0);
         int delay = 1000;
         ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
         vTaskDelay(delay / portTICK_PERIOD_MS);
+        #endif
     }
+}
+static void data_app_start(void *arg)
+{
+    MQTT_MSG_T mic_data={0};
+    char *buf = "he"; 
+
+    while(true)
+    {
+        memset(&mic_data,0,sizeof(MQTT_MSG_T));
+        memcpy(mic_data.mic_data,buf,2);
+        mic_data.mic_length = 2;
+        push_mqtt_data(mic_data);
+        //printf("data_app_start\r\n");
+        ESP_LOGI(TAG, "data_app_start\r\n");
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+
 }
 
 void app_main(void)
@@ -158,6 +206,9 @@ void app_main(void)
     /* Set client ID to some random integer. */
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
-
-    mqtt_app_start();
+    xTaskCreate(data_app_start, "data_task", 512, NULL, 20, &data_task_handle);
+    xTaskCreate(mqtt_app_start, "mqtt_publish", 512, NULL, 20, &publish_task_handle);
+    vTaskStartScheduler();
+	while(1);
+    //mqtt_app_start();
 }
