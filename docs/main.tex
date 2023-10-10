@@ -7,15 +7,15 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{cleveref}
 
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
 
-\title{Conference Paper Title
-\thanks{We'd like to thank the DTU PRG group for providing us with hardware and equipment.}
-}
+\title{Networked Embedded Systems Practical Project}
 
 \author{\IEEEauthorblockN{Siyan Chen}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
@@ -29,8 +29,15 @@ e.lamprou@upnet.gr}
 \maketitle
 
 \begin{abstract}
-    In the project, we will be creating an embedded network system that consisting of 
-    two ESP32\cite{ESP32_Manual} microcontrollers.
+    In this project, we present creation of an
+    embedded network system using the popular ESP32 platform. The system serves
+    the purpose of recording audio samples and facilitating their remote
+    transmission over the Internet. We go into the design and implementation
+    of the sytem while simultaneously putting attention
+    on pivotal security considerations that touch multiple
+    layers of the architecture. We offer an examination of
+    the developmental journey, drawing attention to notable experiences and
+    insights gleaned during deployment and make proposals for their improvement.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -38,12 +45,49 @@ embedded network systems, security
 \end{IEEEkeywords}
 
 \section{Introduction}
-This document is a model and instructions for \LaTeX.
-Please observe the conference page limits. \cite{Schneier_2014}
+
+This report is structured as follows: in \cref{sec:background}, 
+we give a short overview of our project's goals while providing references to similar works. 
+In \cref{sec:system_design}, we go into the design of the system, giving a high-level overview of the architecture and 
+the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on it's performance, 
+while also highligthing some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
+we discuss the results of our work and propose some ideas for future work.
+
+\section{Project Objectives} % Project Objectives 
+\label{sec:background}
+
+\section{System Design}
+\label{sec:system_design}
+
+\subsection{Architecture}
+\subsection{Hardware Setup}
+The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
+\subsection{Software and Firmware}
+\subsection{Communcation}
+
+\section{System Implementation}
+\label{sec:system_implementation}
+\subsection{Testing and Results}
+\label{subsec:testing_and_results}
+\subsection{Security Analysis}
+\label{subsec:security_analysis}
+
+\section{Discussion and Conclusions}
+\label{sec:discussion_and_conclusions}
 
 \section*{Acknowledgment}
 
+\thanks{We'd like to thank the DTU PRG group for providing us with some of the hardware and equipment for this project.}
+
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,bibliography}
+
+\appendices
+
+\section{Reverse Engineering ESP32 Firmware}
+
+As proof of the necessity for taking precautions when shipping an embedded device, 
+we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32
+device in order to extract sensitive information.
 
 \end{document}
