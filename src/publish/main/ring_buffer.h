@@ -8,7 +8,8 @@
 
 #include <stdint.h>
 
-#define  	RING_MAX_BUFSIZE  	128U
+#define  	RING_MAX_BUFSIZE  	1024U
+#define     DATA_LEN            5U
     
 typedef struct
 {
@@ -17,13 +18,13 @@ typedef struct
 	uint32_t    size;							 //一条消息的尺寸(字节)
 	uint32_t    max_num;						 //最大存储几条消息
 	uint8_t     *buffer;                     	 //data ring buffer 
-}RING_BUFFER_T;
+} RING_BUFFER_T;
 
 typedef struct 
 {
-	uint8_t data[3];
+	uint8_t data[DATA_LEN];
 	uint8_t len;
-} MIC_DATA_T;
+} RING_BUFFER_DATA_T;
 
     
 //环形缓冲区可以读完,但是不可写尽[写的时候留一位]
