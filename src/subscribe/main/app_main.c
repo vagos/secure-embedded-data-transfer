@@ -25,6 +25,8 @@
 #include "esp_tls.h"
 #include "esp_ota_ops.h"
 #include <sys/param.h>
+#include "dac_audio.h"
+#include "app_main.h"
 
 static const char *TAG = "SEDT";
 static int CLIENT_ID;
@@ -34,6 +36,8 @@ static int CLIENT_ID;
 
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
 //#define TOPIC_PUBLISH "/topic/sedt"
+
+
 
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
 static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n" CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
@@ -86,7 +90,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         printf("DATA=%.*s\r\n", event->data_len, event->data);
         if (strncmp(event->data, "send binary please", event->data_len) == 0) {
             ESP_LOGI(TAG, "Sending the binary");
-            send_binary(client);
+            send_binary(client);    
         }
         break;
     case MQTT_EVENT_ERROR:
@@ -108,6 +112,47 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
+static void mic_out_start(void *arg)
+{
+    static const char *MICTAG = "MIC_TASK";
+    ESP_LOGI(MICTAG, "DAC audio example start");
+    ESP_LOGI(MICTAG, "--------------------------------------");
+    //dac_audio_init(dac_handle);
+    static uint32_t cnt = 0;
+    dac_continuous_handle_t dac_handle;
+    dac_continuous_config_t cont_cfg = {
+        .chan_mask = DAC_CHANNEL_MASK_ALL,
+        .desc_num = 4,
+        .buf_size = 1024,
+        .freq_hz = CONFIG_AUDIO_SAMPLE_RATE,
+        .offset = 0,
+        .clk_src = DAC_DIGI_CLK_SRC_APLL,   // Using APLL as clock source to get a wider frequency range
+        /* Assume the data in buffer is 'A B C D E F'
+         * DAC_CHANNEL_MODE_SIMUL:
+         *      - channel 0: A B C D E F
+         *      - channel 1: A B C D E F
+         * DAC_CHANNEL_MODE_ALTER:
+         *      - channel 0: A C E
+         *      - channel 1: B D F
+         */
+        .chan_mode = DAC_CHANNEL_MODE_SIMUL,
+    };
+    /* Allocate continuous channels */
+    ESP_ERROR_CHECK(dac_continuous_new_channels(&cont_cfg, &dac_handle));
+    ESP_ERROR_CHECK(dac_continuous_enable(dac_handle));
+    ESP_LOGI(TAG, "DAC initialized success, DAC DMA is ready");
+    size_t audio_size = sizeof(dac_mic_table);
+    while(1)
+    {
+        ESP_LOGI(MICTAG, "Play count: %"PRIu32"\n", cnt++);
+        dac_write_data_synchronously(dac_handle, (uint8_t *)dac_mic_table, audio_size);
+        if(cnt > 1024)
+        {
+            cnt =0;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 static void mqtt_app_start(void)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
@@ -161,5 +206,9 @@ void app_main(void)
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
 
+    xTaskCreate(mic_out_start, "mic_task", 4096, NULL, 2, NULL);
+
     mqtt_app_start();
+    vTaskStartScheduler();
+	while(1);
 }
