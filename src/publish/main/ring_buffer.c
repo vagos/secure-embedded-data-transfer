@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ring_buffer.h"
 
 
@@ -85,6 +86,7 @@ int ring_buffer_push(RING_BUFFER_T* ringCache, uint8_t *data, int nBytes)
 			ringCache->w_index = (ringCache->w_index+1)%ringCache->max_num;
 		}
     }
+
 	return i;
 }
 

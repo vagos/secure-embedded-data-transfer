@@ -44,8 +44,8 @@ static const int MQTT_RING_SIZE = 10;
 static RING_BUFFER_T *mqtt_ring_buffer = NULL;
 static adc_continuous_handle_t adc_handle = NULL;
 
-#undef CONFIG_BROKER_URL
-#define CONFIG_BROKER_URL "mqtt://broker.hivemq.com"
+#undef CONFIG_BROKER_URI
+#define CONFIG_BROKER_URI "mqtts://broker.hivemq.com"
 
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
 #define TOPIC_PUBLISH "/topic/sedt"
@@ -175,7 +175,7 @@ static void mqtt_app_start(void *arg)
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
     
-    uint8_t mqtt_msg_buffer[MQTT_RING_SIZE * DATA_LEN];
+    RING_BUFFER_DATA_T mqtt_msg_buffer[MQTT_RING_SIZE];
     memset(&mqtt_msg_buffer,0, MQTT_RING_SIZE);
 
     /* TODO: Remove */
@@ -189,12 +189,12 @@ static void mqtt_app_start(void *arg)
 
         for(int i=0; i < nframe; i++)
         {
-            uint8_t *data = &mqtt_msg_buffer[i * DATA_LEN]; 
-            ESP_LOGI(TAG, "data: %.*s", DATA_LEN, data);
-            mbedtls_sha256(data, DATA_LEN, sha256_buffer, 0);
+            RING_BUFFER_DATA_T *data = &mqtt_msg_buffer[i]; 
+            ESP_LOGI(TAG, "data: %.*s", data->len, data->data);
+            mbedtls_sha256(data->data, data->len, sha256_buffer, 0);
             ESP_LOG_BUFFER_HEX(TAG, sha256_buffer, sizeof(sha256_buffer));
             
-            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data, DATA_LEN, 0, 0);
+            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
         }
 
@@ -230,11 +230,11 @@ static void data_app_start(void *arg)
                 /* Check the channel number validation, the data is invalid if the channel num exceed the maximum channel */
                 if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT))
                 {
-                    ESP_LOGI(TAG, "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data);
+                    /* ESP_LOGI(TAG, "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data); */
                 } 
                 else 
                 {
-                    ESP_LOGW(TAG, "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data);
+                    /* ESP_LOGW(TAG, "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data); */
                 }
             }
         } 
@@ -246,7 +246,7 @@ static void data_app_start(void *arg)
         memcpy(mic_data.data, buf, sizeof(buf));
         mic_data.len = sizeof(buf);
 
-        ring_buffer_push(mqtt_ring_buffer, mic_data.data, mic_data.len);
+        ring_buffer_push(mqtt_ring_buffer, (uint8_t*)&mic_data, sizeof(RING_BUFFER_DATA_T));
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
@@ -283,7 +283,7 @@ void app_main(void)
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
 
-    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE, DATA_LEN);
+    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE, sizeof(RING_BUFFER_DATA_T));
 
     xTaskCreate(data_app_start, "data_task", 4096, NULL, 2, NULL);
     mqtt_app_start(NULL);
