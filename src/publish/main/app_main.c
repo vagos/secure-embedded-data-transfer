@@ -32,6 +32,8 @@
 #include "ring_buffer.h"
 #include "continuous_read.h"
 
+#define SHA256_DIGEST 32
+
 #if CONFIG_IDF_TARGET_ESP32
 static adc_channel_t channel[1] = {ADC_CHANNEL_6};
 #else
@@ -44,8 +46,8 @@ static const int MQTT_RING_SIZE = 10;
 static RING_BUFFER_T *mqtt_ring_buffer = NULL;
 static adc_continuous_handle_t adc_handle = NULL;
 
-#undef CONFIG_BROKER_URL
-#define CONFIG_BROKER_URL "mqtt://broker.hivemq.com"
+#undef CONFIG_BROKER_URI
+#define CONFIG_BROKER_URI "mqtts://broker.hivemq.com"
 
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
 #define TOPIC_PUBLISH "/topic/sedt"
@@ -147,17 +149,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-void encrypt_string(const char *input, uint8_t *key, uint8_t *iv) /* TODO: Use this */
+void encrypt_message(const unsigned char* input, unsigned char* encrypted, int n)
 {
-    unsigned char output[16]; //char array store output
+
+    const unsigned char key[32] = {0x13, 0x37, 0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37};
+    unsigned char iv[] = {0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+    mbedtls_aes_context aes;
+    mbedtls_aes_init(&aes);
+    mbedtls_aes_setkey_enc(&aes, key, 256); //set key for encryption
+
+    mbedtls_aes_crypt_cfb8(&aes, MBEDTLS_AES_ENCRYPT, n, iv, input, encrypted);
+}
+
+void decrypt_message(const unsigned char* input, unsigned char* decrypted, int n)
+{
+    const unsigned char key[32] = {0x13, 0x37, 0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37};
+    unsigned char iv[] = {0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
     mbedtls_aes_context aes; //aes is simple variable of given type
     mbedtls_aes_init(&aes);
-    mbedtls_aes_setkey_enc(&aes, key, 256);//set key for encryption
-    //this is cryption function which encrypt data
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, strlen(input), iv,
-    (unsigned char *)input, output);
-    //print output hex buffer on console
-    ESP_LOG_BUFFER_HEX("cbc_encrypt", output, strlen(input));
+
+    mbedtls_aes_crypt_cfb8(&aes, MBEDTLS_AES_DECRYPT, n, iv, input, decrypted);
 }
 
 static void mqtt_app_start(void *arg)
@@ -175,7 +186,7 @@ static void mqtt_app_start(void *arg)
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
     
-    uint8_t mqtt_msg_buffer[MQTT_RING_SIZE * DATA_LEN];
+    RING_BUFFER_DATA_T mqtt_msg_buffer[MQTT_RING_SIZE];
     memset(&mqtt_msg_buffer,0, MQTT_RING_SIZE);
 
     /* TODO: Remove */
@@ -185,16 +196,23 @@ static void mqtt_app_start(void *arg)
 
         if (nframe <= 0) continue;
 
-        uint8_t sha256_buffer[32];
+        /* unsigned char sha256_buffer[SHA256_DIGEST]; */
+
+        uint8_t encrypted[DATA_LEN];
 
         for(int i=0; i < nframe; i++)
         {
-            uint8_t *data = &mqtt_msg_buffer[i * DATA_LEN]; 
-            ESP_LOGI(TAG, "data: %.*s", DATA_LEN, data);
-            mbedtls_sha256(data, DATA_LEN, sha256_buffer, 0);
-            ESP_LOG_BUFFER_HEX(TAG, sha256_buffer, sizeof(sha256_buffer));
+            RING_BUFFER_DATA_T *data = &mqtt_msg_buffer[i]; 
+            /* ESP_LOGI(TAG, "data: %.*s", data->len, data->data); */
+            /* mbedtls_sha256(data->data, data->len, sha256_buffer, 0); */
+            /* ESP_LOG_BUFFER_HEX(TAG, sha256_buffer, sizeof(sha256_buffer)); */
+            encrypt_message(data->data, encrypted, data->len);
+            ESP_LOG_BUFFER_HEX(TAG, encrypted, data->len);
+
+            decrypt_message(encrypted, data->data, data->len);
+            ESP_LOGI(TAG, "data: %.*s", data->len, data->data);
             
-            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data, DATA_LEN, 0, 0);
+            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 0, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
         }
 
@@ -230,11 +248,11 @@ static void data_app_start(void *arg)
                 /* Check the channel number validation, the data is invalid if the channel num exceed the maximum channel */
                 if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT))
                 {
-                    ESP_LOGI(TAG, "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data);
+                    /* ESP_LOGI(TAG, "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data); */
                 } 
                 else 
                 {
-                    ESP_LOGW(TAG, "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data);
+                    /* ESP_LOGW(TAG, "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data); */
                 }
             }
         } 
@@ -243,10 +261,10 @@ static void data_app_start(void *arg)
             //We try to read `EXAMPLE_READ_LEN` until API returns timeout, which means there's no available data
             ESP_LOGW(TAG, "ADC Timeout\r\n");
         }
+
         memcpy(mic_data.data, buf, sizeof(buf));
         mic_data.len = sizeof(buf);
-
-        ring_buffer_push(mqtt_ring_buffer, mic_data.data, mic_data.len);
+        ring_buffer_push(mqtt_ring_buffer, (uint8_t*)&mic_data, sizeof(RING_BUFFER_DATA_T));
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
@@ -283,7 +301,7 @@ void app_main(void)
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
 
-    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE, DATA_LEN);
+    mqtt_ring_buffer = ring_buffer_create(MQTT_RING_SIZE, sizeof(RING_BUFFER_DATA_T));
 
     xTaskCreate(data_app_start, "data_task", 4096, NULL, 2, NULL);
     mqtt_app_start(NULL);
