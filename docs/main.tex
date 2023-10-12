@@ -9,6 +9,7 @@
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{cleveref}
+\usepackage{dirtytalk}
 
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
@@ -56,6 +57,12 @@ we discuss the results of our work and propose some ideas for future work.
 \section{Project Objectives} % Project Objectives 
 \label{sec:background}
 
+The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
+The use case for something like could be a remote monitoring system, where the device is placed in a remote location and 
+the user can listen to an audio feed from their device. Applications such as baby monitors or home security systems come to mind.
+In both of these cases, the confidentiality of the audio feed is very important and
+attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack, VideoSurvAttacks}.
+
 \section{System Design}
 \label{sec:system_design}
 
@@ -72,6 +79,23 @@ The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 \subsection{Security Analysis}
 \label{subsec:security_analysis}
 
+\subsubsection{Threat Model}
+
+We assume a strong software adversary that has physical acess to the device.
+That means, the a persistent attacker might be able to extract the firmware from the device and
+analyze it. Such analysis can result in cryptographic keys and certificates being extracted from the device
+\footnote{In \cref{appendix:reverse_engineering} we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32 device.}, 
+to the proprietary program logic of the device being reverse engineered.
+In addition, the device might be placed in an untrusted environment, where the communication as well 
+as other networking infrastructure might tampered with.
+An adversary might be able to \say{listen} to the communication between the two devices,
+as they might be inside the same network.
+Thus, the adversary might be able to perform a wide range of network attacks such 
+as a DNS Cache Poisoning attack \cite{Dissanayake_2018}, the adversary might have acess to the local router 
+settings, making a Domain Hijacking and Redirection attack \cite{DnsHijacking} trivial. In both of these attacks, 
+the data transferred from the recording device to the server might be redirected to a malicious server, 
+where the data might be stored and analyzed.
+
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
 
@@ -83,11 +107,14 @@ The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 \bibliography{IEEEabrv,bibliography}
 
 \appendices
+\crefalias{section}{appendix}
 
-\section{Reverse Engineering ESP32 Firmware}
+\appendix{Reverse Engineering ESP32 Firmware}
+\label{appendix:reverse_engineering}
 
 As proof of the necessity for taking precautions when shipping an embedded device, 
 we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32
 device in order to extract sensitive information.
+
 
 \end{document}
