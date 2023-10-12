@@ -72,6 +72,10 @@ The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 \subsection{Software and Firmware}
 \subsection{Communcation}
 
+Communication between the two devices is done using the MQTT protocol\cite{MQTT_Survey}.
+MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low-bandwidth.
+For our project, we used a free public MQTT broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
+
 \section{System Implementation}
 \label{sec:system_implementation}
 \subsection{Testing and Results}
