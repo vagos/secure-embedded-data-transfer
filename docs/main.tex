@@ -10,10 +10,17 @@
 \usepackage{hyperref}
 \usepackage{cleveref}
 \usepackage{dirtytalk}
+\usepackage{listings}
+\usepackage[outputdir=build]{minted}
 
+\usemintedstyle{default}
+\setminted{linenos}
+\setminted{frame=single}
+\setminted{framesep=2mm}
 
-\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
-    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\usepackage[T1]{fontenc}
+\renewcommand{\ttdefault}{cmtt}
+
 \begin{document}
 
 \title{Networked Embedded Systems Practical Project}
@@ -70,23 +77,30 @@ attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack
 \subsection{Hardware Setup}
 The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 \subsection{Software and Firmware}
+
+For programming the ESP32 devices, we used the Espressif Systems' ESP-IDF\cite{ESP-IDF}
+software development environment. The SDE is written in the C programming 
+language. For cross-compiling our source code to the ESP platform we used the 
+\texttt{xtensa-esp32-elf} compiler which is based on GCC.
+
+
 \subsection{Communcation}
 
-Communication between the two devices is done using the MQTT protocol\cite{MQTT_Survey}.
+Communication between the two devices is done using the Message Queuing Telemetry Transport (MQTT) protocol\cite{MQTT_Survey}.
 MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low-bandwidth.
 For our project, we used a free public MQTT broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
 
 \section{System Implementation}
 \label{sec:system_implementation}
-\subsection{Testing and Results}
-\label{subsec:testing_and_results}
+
 \subsection{Security Analysis}
 \label{subsec:security_analysis}
+
 
 \subsubsection{Threat Model}
 
 We assume a strong software adversary that has physical acess to the device.
-That means, the a persistent attacker might be able to extract the firmware from the device and
+A persistent attacker might be able to extract the firmware from the device and
 analyze it. Such analysis can result in cryptographic keys and certificates being extracted from the device
 \footnote{In \cref{appendix:reverse_engineering} we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32 device.}, 
 to the proprietary program logic of the device being reverse engineered.
@@ -99,6 +113,38 @@ as a DNS Cache Poisoning attack \cite{Dissanayake_2018}, the adversary might hav
 settings, making a Domain Hijacking and Redirection attack \cite{DnsHijacking} trivial. In both of these attacks, 
 the data transferred from the recording device to the server might be redirected to a malicious server, 
 where the data might be stored and analyzed.
+
+\subsubsection{Security Considerations}
+
+\paragraph{Communication}
+
+In order to make communication between the two devices and the MQTT broker
+trusted, we initiate an SSL (Secure Socket Layer) connection to the public broker. 
+The use of SSL/TLS (Transport Layer Security)
+ensures the confidentiality and integrity of data transmission. 
+It achieves this by encrypting the data in transit, preventing
+unauthorized access and eavesdropping. The SSL connection also provides a means
+to verify the authenticity of the MQTT broker.
+The use of certificates, and thus assymetric encryption might be inappropriate in the scenario where more 
+memory contrained devices are part of the network. 
+An alternative is the use of Transport Layer Security pre-shared key (TLS-PSK), where the two parties 
+(device and broker) have a common key which they use to encrypt their communication channel.
+However, this approach requires the establishment of a key exchange routine before communication can start.
+
+\paragraph{Message Encryption}
+
+Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted with the possibility 
+of the communication channel being compromised or the data being stored inside a server.
+For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
+a common 32-byte pre-shared key between the two devices.
+The ESP32 offers hardware accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c}.}.
+In our implementation, the key is stored inside the program's source code using 
+a simple obsfucation function that shuffles the key's in a deterministic way before using it, essentially
+using a different key that can not be \textit{easily} obtained from static inspection of the firmeware.
+An alternative would be to use 
+Each audio sample (a byte buffer of variable size) is encrypted using the key 
+and subsequently sent.
+
 
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
@@ -120,5 +166,11 @@ As proof of the necessity for taking precautions when shipping an embedded devic
 we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32
 device in order to extract sensitive information.
 
+\begin{listing}[h]
+\begin{minted}{Bash}
+$ esptool.py read_flash $START $END flash.bin
+$ ./esp32_image_parser.py show_partitions
+\end{minted}
+\end{listing}
 
 \end{document}
