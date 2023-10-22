@@ -14,9 +14,9 @@
 \usepackage[outputdir=build]{minted}
 
 \usemintedstyle{default}
-\setminted{linenos}
 \setminted{frame=single}
 \setminted{framesep=2mm}
+\setminted{fontsize=\footnotesize}
 
 \usepackage[T1]{fontenc}
 \renewcommand{\ttdefault}{cmtt}
@@ -80,9 +80,25 @@ The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 
 For programming the ESP32 devices, we used the Espressif Systems' ESP-IDF\cite{ESP-IDF}
 software development environment. The SDE is written in the C programming 
-language. For cross-compiling our source code to the ESP platform we used the 
-\texttt{xtensa-esp32-elf} compiler which is based on GCC.
+language. For cross-compiling our source code to the ESP platform we used the \texttt{GCC}-based
+\texttt{xtensa-esp32-elf} compiler. 
+For the operating system, we used the FreeRTOS\cite{FreeRTOS} real-time operating system.
+In our project, we used FreeRTOS' task management features.
+The provided API allows us to easily create parallel tasks that are then scheduled by the operating system.
+For our purposes we have a listening task and a action task for each of the devices.
+For the recording device, a task is responsible for recording audio samples and saving them 
+inside a circular buffer data structure. Asyncronously, a second task is responsible for
+sending the samples to the server using the MQTT protocol.
+For the playback device, a task is responsible for receiving the samples from the server
+and another one for playback.
 
+One challenge we encoutered was choosing the correct stack size for each created thread.
+We wanted to use the minimum stack size possible.
+For that, we used the FreeRTOS \texttt{uxTaskGetStackHighWaterMark} function, which returns
+the available stack space for a given thread.
+We set our stack size to the size allocated minus the value returned by the function plus a safety margin.
+A more robust solution would also include a code coverage analysis of the program,
+making sure that there are no code paths where the stack overflows.
 
 \subsection{Communcation}
 
@@ -103,7 +119,7 @@ We assume a strong software adversary that has physical acess to the device.
 A persistent attacker might be able to extract the firmware from the device and
 analyze it. Such analysis can result in cryptographic keys and certificates being extracted from the device
 \footnote{In \cref{appendix:reverse_engineering} we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32 device.}, 
-to the proprietary program logic of the device being reverse engineered.
+to the proprietary program logic being reverse engineered.
 In addition, the device might be placed in an untrusted environment, where the communication as well 
 as other networking infrastructure might tampered with.
 An adversary might be able to \say{listen} to the communication between the two devices,
@@ -133,17 +149,25 @@ However, this approach requires the establishment of a key exchange routine befo
 
 \paragraph{Message Encryption}
 
-Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted with the possibility 
+Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted because of the possibility 
 of the communication channel being compromised or the data being stored inside a server.
 For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
 a common 32-byte pre-shared key between the two devices.
 The ESP32 offers hardware accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c}.}.
 In our implementation, the key is stored inside the program's source code using 
-a simple obsfucation function that shuffles the key's in a deterministic way before using it, essentially
+a simple obsfucation function that shuffles the keys deterministically before using it, essentially
 using a different key that can not be \textit{easily} obtained from static inspection of the firmeware.
 An alternative would be to use 
 Each audio sample (a byte buffer of variable size) is encrypted using the key 
 and subsequently sent.
+
+\paragraph{Program Logic}
+
+To avoid the possibility of buffer overflow attacks, where a malicious user might be able 
+to write to memory locations outside designated areas (such as outside the circular buffer that saves
+the audio samples) we enable the \texttt{CHECK\_FOR\_STACK\_OVERFLOW} option in the FreeRTOS configuration.
+This way, the kernel will check that the stack pointer register is within the stack bounds on every context switch.
+In addition, we added our own assertions in places where buffer overflows might occur.
 
 
 \section{Discussion and Conclusions}
@@ -169,8 +193,32 @@ device in order to extract sensitive information.
 \begin{listing}[h]
 \begin{minted}{Bash}
 $ esptool.py read_flash $START $END flash.bin
-$ ./esp32_image_parser.py show_partitions
+$ ./esp32_image_parser.py show_partitions flash.bin
+$ ./esp32_image_parser.py create_elf flash.bin\
+                            -partition ota_1\
+                            -output ota_1.elf
 \end{minted}
+\caption{The sequence commands for extracting the flash contents and converting them to an ELF file.}
 \end{listing}
+
+After gettings the device's firmeware into ELF format, we can use a plethora of tools 
+to reverse engineer the underlying program. 
+In this example, we will conduct a static analysis of the binary using the popular Ghidra\cite{Ghidra,GhidraBook} analysis tool.
+We use the \texttt{ghidra-xtensa}\footnote{\url{https://github.com/yath/ghidra-xtensa}} processor,
+which adds support for the Xtensa architecture, the architecture used by the ESP32.
+
+\begin{figure}[h]
+    \centering
+    \fbox{\includegraphics[width=.9\linewidth]{assets/ghidra.png}}
+    \caption{Screeshot inside Ghidra where we are able to read the used certificate. Simmilalry, 
+    by inspecting the \texttt{rodata} flash section we can find the broker domain the device is conncectiing to, the 
+    symmetric encryption key used for message encryption.}
+    \label{fig:ghidra}
+\end{figure}
+
+An attacker can further attack the device by performing dynamic analysis using the \texttt{qemu-xtensa} emulator
+by plugging to it the \texttt{gdb} debugger. 
+Using those tools, we can follow the program execution and extract the symmetric encryption key used for message encryption, 
+even is that key is not stored in the flash memory, but is generated at runtime.
 
 \end{document}
