@@ -11,12 +11,12 @@
 \usepackage{cleveref}
 \usepackage{dirtytalk}
 \usepackage{listings}
-\usepackage[outputdir=build]{minted}
 
-\usemintedstyle{default}
-\setminted{frame=single}
-\setminted{framesep=2mm}
-\setminted{fontsize=\footnotesize}
+% \usepackage[outputdir=build]{minted}
+% \usemintedstyle{default}
+% \setminted{frame=single}
+% \setminted{framesep=2mm}
+% \setminted{fontsize=\footnotesize}
 
 \usepackage[T1]{fontenc}
 \renewcommand{\ttdefault}{cmtt}
@@ -205,16 +205,16 @@ As proof of the necessity for taking precautions when shipping an embedded devic
 we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32
 device in order to extract sensitive information.
 
-\begin{listing}[h]
-\begin{minted}{Bash}
-$ esptool.py read_flash $START $END flash.bin
-$ ./esp32_image_parser.py show_partitions flash.bin
-$ ./esp32_image_parser.py create_elf flash.bin\
-                            -partition ota_1\
-                            -output ota_1.elf
-\end{minted}
-\caption{The sequence commands for extracting the flash contents and converting them to an ELF file.}
-\end{listing}
+% \begin{listing}[h]
+% \begin{minted}{Bash}
+% $ esptool.py read_flash $START $END flash.bin
+% $ ./esp32_image_parser.py show_partitions flash.bin
+% $ ./esp32_image_parser.py create_elf flash.bin\
+%                             -partition ota_1\
+%                             -output ota_1.elf
+% \end{minted}
+% \caption{The sequence commands for extracting the flash contents and converting them to an ELF file.}
+% \end{listing}
 
 After gettings the device's firmeware into ELF format, we can use a plethora of tools 
 to reverse engineer the underlying program. 
