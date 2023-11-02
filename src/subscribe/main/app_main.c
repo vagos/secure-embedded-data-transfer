@@ -45,6 +45,7 @@ static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFIC
 extern const uint8_t mqtt_eclipseprojects_io_pem_start[]   asm("_binary_mqtt_pem_start");
 #endif
 extern const uint8_t mqtt_eclipseprojects_io_pem_end[]   asm("_binary_mqtt_pem_end");
+static uint8_t mic_table_output[1024];
 
 //
 // Note: this function is for testing purposes only publishing part of the active partition
@@ -90,6 +91,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
         /* add_data_to_buffer() */
+        memcpy(mic_table_output,event->data,event->data_len);
         /* if (strncmp(event->data, "send binary please", event->data_len) == 0) { */
         /*     ESP_LOGI(TAG, "Sending the binary"); */
         /*     send_binary(client); */    
@@ -143,11 +145,12 @@ static void mic_out_start(void *arg)
     ESP_ERROR_CHECK(dac_continuous_new_channels(&cont_cfg, &dac_handle));
     ESP_ERROR_CHECK(dac_continuous_enable(dac_handle));
     ESP_LOGI(TAG, "DAC initialized success, DAC DMA is ready");
-    size_t audio_size = sizeof(dac_mic_table);
+    //size_t audio_size = sizeof(dac_mic_table);
+    size_t audio_size = sizeof(mic_table_output);
     while(1)
     {
-        ESP_LOGI(MICTAG, "Play count: %"PRIu32"\n", cnt++);
-        dac_write_data_synchronously(dac_handle, (uint8_t *)dac_mic_table, audio_size);
+        //ESP_LOGI(MICTAG, "Play count: %"PRIu32"\n", cnt++);
+        dac_write_data_synchronously(dac_handle, (uint8_t *)mic_table_output, audio_size);
         if(cnt > 1024)
         {
             cnt = 0;
