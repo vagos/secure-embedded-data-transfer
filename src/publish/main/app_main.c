@@ -149,9 +149,23 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
+void shuffle_buffer(unsigned char* buffer, int n)
+{
+    unsigned char temp;
+    for (int i = 0; i < n; i++)
+    {
+        int j = n - 1 - i;
+        if (i >= n / 2)
+            break;
+        temp = buffer[i];
+        buffer[i] = buffer[j];
+        buffer[j] = temp;
+    }
+
+}
+
 void encrypt_message(const unsigned char* input, unsigned char* encrypted, int n)
 {
-
     const unsigned char key[32] = {0x13, 0x37, 0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37,0x13, 0x37};
     unsigned char iv[] = {0xff, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
     mbedtls_aes_context aes;
@@ -212,7 +226,7 @@ static void mqtt_app_start(void *arg)
             decrypt_message(encrypted, data->data, data->len);
             ESP_LOGI(TAG, "data: %.*s", data->len, data->data);
             
-            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 0, 0);
+            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 1, 0);
             ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
         }
 
