@@ -75,6 +75,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+        msg_id = esp_mqtt_client_subscribe(client, TOPIC_SUBSCRIBE, 1);
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
         break;
@@ -88,10 +89,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
-        if (strncmp(event->data, "send binary please", event->data_len) == 0) {
-            ESP_LOGI(TAG, "Sending the binary");
-            send_binary(client);    
-        }
+        /* add_data_to_buffer() */
+        /* if (strncmp(event->data, "send binary please", event->data_len) == 0) { */
+        /*     ESP_LOGI(TAG, "Sending the binary"); */
+        /*     send_binary(client); */    
+        /* } */
         break;
     case MQTT_EVENT_ERROR:
         ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -148,7 +150,7 @@ static void mic_out_start(void *arg)
         dac_write_data_synchronously(dac_handle, (uint8_t *)dac_mic_table, audio_size);
         if(cnt > 1024)
         {
-            cnt =0;
+            cnt = 0;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -167,6 +169,8 @@ static void mqtt_app_start(void)
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
+
+    for (;;); // Already registered to event loop
     
     /* TODO: Remove */
     while (true) 
