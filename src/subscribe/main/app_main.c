@@ -26,7 +26,9 @@
 #include "esp_ota_ops.h"
 #include <sys/param.h>
 #include "dac_audio.h"
-#include "app_main.h"
+/* #include "app_main.h" */
+
+#define DAC_BUFFER_SIZE 1024
 
 static const char *TAG = "SEDT";
 static int CLIENT_ID;
@@ -37,7 +39,8 @@ static int CLIENT_ID;
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
 //#define TOPIC_PUBLISH "/topic/sedt"
 
-
+uint8_t mic_data[DAC_BUFFER_SIZE];
+uint8_t mic_data_len;
 
 #if CONFIG_BROKER_CERTIFICATE_OVERRIDDEN == 1
 static const uint8_t mqtt_eclipseprojects_io_pem_start[]  = "-----BEGIN CERTIFICATE-----\n" CONFIG_BROKER_CERTIFICATE_OVERRIDE "\n-----END CERTIFICATE-----";
@@ -87,9 +90,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
-        ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        /* ESP_LOGI(TAG, "MQTT_EVENT_DATA"); */
+        /* printf("TOPIC=%.*s\r\n", event->topic_len, event->topic); */
+        ESP_LOGI(TAG, "DATA: ");
+        ESP_LOG_BUFFER_HEX(TAG, event->data, event->data_len);
+        mic_data_len = event->data_len;
+        for (int i = 0; i < DAC_BUFFER_SIZE / mic_data_len; i++)
+        {
+            memcpy(mic_data + i * mic_data_len, event->data, mic_data_len);
+        }
         break;
     case MQTT_EVENT_ERROR:
         ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -139,15 +148,13 @@ static void mic_out_start(void *arg)
     ESP_ERROR_CHECK(dac_continuous_new_channels(&cont_cfg, &dac_handle));
     ESP_ERROR_CHECK(dac_continuous_enable(dac_handle));
     ESP_LOGI(TAG, "DAC initialized success, DAC DMA is ready");
-    size_t audio_size = sizeof(dac_mic_table);
     while(1)
     {
-        ESP_LOGI(MICTAG, "Play count: %"PRIu32"\n", cnt++);
-        dac_write_data_synchronously(dac_handle, (uint8_t *)dac_mic_table, audio_size);
-        if(cnt > 1024)
-        {
-            cnt =0;
-        }
+        ESP_LOGI(TAG, "Playing: ");
+        /* ESP_LOG_BUFFER_HEX(MICTAG, mic_data, mic_data_len); */
+        /* dac_write_data_synchronously(dac_handle, (uint8_t *)mic_data, mic_data_len); */
+        dac_write_data_synchronously(dac_handle, mic_data, DAC_BUFFER_SIZE);
+        ESP_LOGI(TAG, "Play count: %"PRIu32"\n", cnt++);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

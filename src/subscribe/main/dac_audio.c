@@ -33,7 +33,7 @@ void dac_audio_init(dac_continuous_handle_t *dac_handle)
 #endif
 void dac_write_data_synchronously(dac_continuous_handle_t handle, uint8_t *data, size_t data_size)
 {
-    //ESP_LOGI(TAG, "Audio size %d bytes, played at frequency %d Hz synchronously", data_size, CONFIG_EXAMPLE_AUDIO_SAMPLE_RATE);
+    /* ESP_LOGI(TAG, "Audio size %d bytes, played at frequency %d Hz synchronously", data_size, CONFIG_EXAMPLE_AUDIO_SAMPLE_RATE); */
     //uint32_t cnt = 1;
     //printf("Play count: %"PRIu32"\n", cnt++);
     ESP_ERROR_CHECK(dac_continuous_write(handle, data, data_size, NULL, -1));
