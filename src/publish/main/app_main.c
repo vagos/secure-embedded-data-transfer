@@ -199,14 +199,14 @@ static void mqtt_app_start(void *arg)
             /* ESP_LOGI(TAG, "data: %.*s", data->len, data->data); */
             /* mbedtls_sha256(data->data, data->len, sha256_buffer, 0); */
             /* ESP_LOG_BUFFER_HEX(TAG, sha256_buffer, sizeof(sha256_buffer)); */
-            encrypt_message(data->data, encrypted, data->len);
-            ESP_LOG_BUFFER_HEX(TAG, encrypted, data->len);
+            /* encrypt_message(data->data, encrypted, data->len); */
+            /* ESP_LOG_BUFFER_HEX(TAG, encrypted, data->len); */
 
-            decrypt_message(encrypted, data->data, data->len);
-            ESP_LOGI(TAG, "data: %.*s", data->len, data->data);
+            /* decrypt_message(encrypted, data->data, data->len); */
+            /* ESP_LOGI(TAG, "data: %.*s", data->len, data->data); */
             
-            int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 1, 0);
-            /* ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID); */
+            esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 1, 0);
+            ESP_LOG_BUFFER_HEX(TAG, data->data, data->len);
         }
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -240,6 +240,9 @@ static void data_app_start(void *arg)
                 if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT))
                 {
                     /* ESP_LOGI(TAG, "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data); */
+                    memcpy(mic_data.data, &data, sizeof(data));
+                    mic_data.len = sizeof(data);
+                    ring_buffer_push(mqtt_ring_buffer, (uint8_t*)&mic_data, sizeof(RING_BUFFER_DATA_T));
                 } 
                 else 
                 {
@@ -253,9 +256,6 @@ static void data_app_start(void *arg)
             ESP_LOGW(TAG, "ADC Timeout\r\n");
         }
 
-        memcpy(mic_data.data, buf, sizeof(buf));
-        mic_data.len = sizeof(buf);
-        ring_buffer_push(mqtt_ring_buffer, (uint8_t*)&mic_data, sizeof(RING_BUFFER_DATA_T));
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
