@@ -47,7 +47,7 @@ static RING_BUFFER_T *mqtt_ring_buffer = NULL;
 static adc_continuous_handle_t adc_handle = NULL;
 
 #undef CONFIG_BROKER_URI
-#define CONFIG_BROKER_URI "mqtts://broker.hivemq.com"
+#define CONFIG_BROKER_URI "mqtt://broker.hivemq.com"
 
 #define TOPIC_SUBSCRIBE "/topic/sedt/#"
 #define TOPIC_PUBLISH "/topic/sedt"
@@ -79,22 +79,6 @@ static void adc_init()
     ESP_ERROR_CHECK(adc_continuous_start(adc_handle));
 }
 
-/*----------------------------------------------------------------------------------------------------------*/
-//
-// Note: this function is for testing purposes only publishing part of the active partition
-//       (to be checked against the original binary)
-//
-static void send_binary(esp_mqtt_client_handle_t client)
-{
-    esp_partition_mmap_handle_t out_handle;
-    const void *binary_address;
-    const esp_partition_t *partition = esp_ota_get_running_partition();
-    esp_partition_mmap(partition, 0, partition->size, ESP_PARTITION_MMAP_DATA, &binary_address, &out_handle);
-    // sending only the configured portion of the partition (if it's less than the partition size)
-    int binary_size = MIN(CONFIG_BROKER_BIN_SIZE_TO_SEND, partition->size);
-    int msg_id = esp_mqtt_client_publish(client, "/topic/binary", binary_address, binary_size, 0, 0);
-    ESP_LOGI(TAG, "binary sent with msg_id=%d", msg_id);
-}
 /*
  * Event handler registered to receive MQTT events
  * This function is called by the MQTT client event loop.
@@ -119,11 +103,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
             printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
             printf("DATA=%.*s\r\n", event->data_len, event->data);
-            if (strncmp(event->data, "send binary please", event->data_len) == 0) 
-            {
-                ESP_LOGI(TAG, "Sending the binary");
-                send_binary(client);
-            }
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -190,7 +169,7 @@ static void mqtt_app_start(void *arg)
     const esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
             .address.uri = CONFIG_BROKER_URI,
-            .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start
+            /* .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start */
         },
     };
 
@@ -227,10 +206,8 @@ static void mqtt_app_start(void *arg)
             ESP_LOGI(TAG, "data: %.*s", data->len, data->data);
             
             int msg_id = esp_mqtt_client_publish(client, TOPIC_PUBLISH, (char *)data->data, data->len, 1, 0);
-            ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID);
+            /* ESP_LOGI(TAG, "sent publish successful, msg_id=%d client=%d", msg_id, CLIENT_ID); */
         }
-
-        ESP_LOGI(TAG, "sent publish successful\r\n");
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
