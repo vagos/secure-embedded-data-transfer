@@ -31,6 +31,7 @@
 
 #include "ring_buffer.h"
 #include "continuous_read.h"
+#include "shuffle_buffer.h"
 
 #define SHA256_DIGEST 32
 
@@ -126,21 +127,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             ESP_LOGI(TAG, "Other event id:%d", event->event_id);
             break;
     }
-}
-
-void shuffle_buffer(unsigned char* buffer, int n)
-{
-    unsigned char temp;
-    for (int i = 0; i < n; i++)
-    {
-        int j = n - 1 - i;
-        if (i >= n / 2)
-            break;
-        temp = buffer[i];
-        buffer[i] = buffer[j];
-        buffer[j] = temp;
-    }
-
 }
 
 void encrypt_message(const unsigned char* input, unsigned char* encrypted, int n)
