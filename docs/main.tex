@@ -12,6 +12,7 @@
 \usepackage{cleveref}
 \usepackage{dirtytalk}
 \usepackage{verbatim}
+\usepackage{adjustbox}
 
 \usepackage[outputdir=build]{minted}
 % \usemintedstyle{default}
@@ -51,7 +52,7 @@ s232462@dtu.dk}
 embedded network systems, security
 \end{IEEEkeywords}
 
-\section{Introduction}
+\section{Introduction and Project Objectives}
 
 Embedded network systems have burgeoned as critical assets across numerous
 domains, encompassing home automation, industrial monitoring, and beyond. 
@@ -65,6 +66,11 @@ In this work, we aim to provide a set of security solutions that do not employ
 heavy cryptographic primitives or complex remote attestation protocols, but rather
 focus on the use of simple and lightweight techniques that can be easily implemented
 on resource-constrained devices.
+The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
+The use case could be a remote monitoring system, where the device is placed in a remote location and 
+the user can listen to an audio feed from their device. Applications such as baby monitors or home security systems come to mind.
+In both of these cases, the confidentiality of the audio feed is very important and
+attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack, VideoSurvAttacks}.
 
 % This report is structured as follows: in \cref{sec:background}, 
 % we give a short overview of our project's goals while providing references to similar works. 
@@ -73,19 +79,12 @@ on resource-constrained devices.
 % while also highligthing some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
 % we discuss the results of our work and propose some ideas for future work.
 
-\section{Project Objectives} % Project Objectives 
-\label{sec:background}
-
-The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
-The use case could be a remote monitoring system, where the device is placed in a remote location and 
-the user can listen to an audio feed from their device. Applications such as baby monitors or home security systems come to mind.
-In both of these cases, the confidentiality of the audio feed is very important and
-attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack, VideoSurvAttacks}.
-
 \section{System Design}
 \label{sec:system_design}
 
 \subsection{Architecture}
+
+A high-level overview of the system architecture can be seen in \cref{fig:architecture}.
 
 \begin{figure}[h]
     \hspace*{-0.4cm}
@@ -121,6 +120,7 @@ Topics are strings used to identify the messages and are organized in a hierarch
 We used MQTT because of its simple programming model, as most of the communication logic is handled by the broker.
 For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
 
+
 \section{System Implementation}
 \label{sec:system_implementation}
 
@@ -131,7 +131,9 @@ The main program logic is separated into two files, one for the recording device
 The recording device is responsible for recording audio samples and sending them to the server.
 The playback device is responsible for receiving the audio samples from the server and playing them back.
 
-The FreeRTOS-provided API allows us to easily create parallel tasks that are then scheduled by the operating system.
+The FreeRTOS-provided API allows us to create parallel tasks that are then scheduled by the operating system.
+The FreeRTOS scheduler uses a preemptive priority-based scheduling algorithm\cite{FreeRTOS_Scheduling}, something which can be configured.
+For our application, we used the default configuration where preemption and time-slicing are enabled.
 We have a listening task and an action task for each of the devices.
 For the recording device, a task is responsible for recording audio samples and saving them 
 inside a circular buffer data structure. Asynchronously, a second task is responsible for
@@ -146,8 +148,6 @@ the available stack space for a given thread.
 We set our stack size to the size allocated minus the value returned by the function plus a safety margin.
 A more robust solution would also include a code coverage analysis\cite{CodeCoverage} of the program,
 making sure that there are no code paths where the stack overflows.
-
-
 
 \subsection{Security Analysis}
 \label{subsec:security_analysis}
@@ -168,7 +168,7 @@ Thus, the adversary might be able to perform a wide range of network attacks suc
 as a DNS Cache Poisoning attack \cite{Dissanayake_2018}, the adversary might have access to the local router 
 settings, making a Domain Hijacking and Redirection attack \cite{DnsHijacking} trivial. In both of these attacks, 
 the data transferred from the recording device to the server might be redirected to a malicious server, 
-where the data might be stored and analyzed.
+where it might be stored and analyzed.
 
 \subsubsection{Security Considerations}
 
@@ -181,12 +181,26 @@ ensures the confidentiality and integrity of data transmission.
 It achieves this by encrypting the data in transit, preventing
 unauthorized access and eavesdropping. The SSL connection also provides a means
 to verify the authenticity of the MQTT broker.
+We do this by using the \textit{MQTTS} (MQTT over TLS) protocol, which is done 
+by using the \texttt{mqtts://} prefix when connecting to the broker and specifying 
+a verification certificate
+\footnote{The \textit{openssl} utility can be used to obtain the certificate of a given domain.
+For example, \texttt{openssl s\_client -showcerts -connect broker.hivemq.com:8883} will print the certificate of \texttt{broker.hivemq.com}.}
+for our MQTT client.
 The use of certificates, and thus asymmetric encryption might be inappropriate in the scenario where more 
 memory-constrained devices are part of the network. 
 An alternative is the use of Transport Layer Security pre-shared key (TLS-PSK)\cite{rfc4279}, where the two parties 
 (device and broker) have a common key that they use to encrypt their communication channel.
 However, this approach requires the establishment of a key exchange routine before communication can start
 and creates protocol complexity.
+However, we do use the pre-shared key approach when encrypting the audio samples.
+
+Regarding the update of the certificate for the MQTT broker.
+Domains that provide free SSL certificates, such as \texttt{letsencrypt.org}, have a short expiration time for their certificates (usually around 90 days).
+This means that the certificate inside the device's firmware needs to be updated regularly.
+One way to do this is to use the Over-The-Air (OTA) update feature that the ESP32 provides.
+With this, one of the device partitions is reserved for storing the firmware, while the other is used for running the program.
+When an update is available, the device will download the new firmware and store it in the reserved partition.
 
 \paragraph{Message Encryption}
 
@@ -196,11 +210,16 @@ impersonates a Wi-Fi access point by using the same SSID) or the data is stored 
 For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
 a common 32-byte pre-shared key between the two devices.
 The ESP32 offers hardware-accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c},
-with some attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
+with some (now patched) attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
 
 In our implementation, the key is stored inside the program's source code using 
 a simple obfuscation function that shuffles the keys deterministically before using it, essentially
 making it so the key can not be \textit{easily} obtained from static inspection of the firmware.
+In our project, we employed two alternative obfuscation functions: one 
+using a simple shuffle routine and one using
+virtual machine based obfuscation\cite{VMObfuscation} with the the \textit{Tigress}\cite{Tigress} diversifying virtualizer/obfuscator.
+This tool can be used to obfuscate the program logic using 
+a number of source to source transformations.\footnote{For our purposes, we used the \texttt{--transform=Virtualize} option.}
 Other alternatives would be to use a key exchange protocol such as Diffie-Hellman key exchange\cite{DiffieHellmanKeyExchange} to 
 establish a common key between the two devices or store the key in one of ESP32's eFuse blocks.
 Each audio sample (a byte buffer of variable size) is encrypted using the key 
@@ -228,9 +247,37 @@ where the firmware is run inside a virtual machine that is hosted on the device.
 Using this approach, reverse engineering tools that rely on the analysis of
 assembly instructions would not be able to accurately recreate the program
 code.
-% In our project, we tried to employ the \textit{Elk}\cite{Elk} lightweight javascript virtual machine
-% to implement the sample storing logic, but removed it in the final version due to time constraints.
 
+\section{Results and Evaluation}
+
+\subsection{Network Performance}
+
+
+
+\subsection{Security Analysis}
+
+Below is a table of the security considerations we took into account and the corresponding countermeasures we used.
+
+\begin{table}[h]
+    \centering
+\begin{adjustbox}{width=\columnwidth,center}
+    \begin{tabular}{|l|l|}
+        \hline
+        \textbf{Security Consideration} & \textbf{Countermeasure} \\ \hline
+        Confidentiality of data in transit & SSL/TLS \\ \hline
+        Integrity of data in transit & SSL/TLS \\ \hline
+        Confidentiality of data at rest & AES encryption \\ \hline
+        Integrity of data at rest & AES encryption \\ \hline
+        Confidentiality of program logic & Flash encryption \\ \hline
+        Integrity of program logic & Flash encryption, Stack overflow checking \\ \hline
+        Confidentiality of program logic & Flash encryption, Obfuscation, Virtualization \\ \hline
+    \end{tabular}
+\end{adjustbox}
+    \caption{Security considerations and countermeasures.}
+    \label{tab:security_considerations}
+\end{table}
+
+\subsection{Power Consumption}
 
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
