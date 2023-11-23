@@ -13,6 +13,8 @@
 \usepackage{dirtytalk}
 \usepackage{verbatim}
 \usepackage{adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes,arrows}
 
 \usepackage[outputdir=build]{minted}
 % \usemintedstyle{default}
@@ -22,6 +24,7 @@
 
 \usepackage[T1]{fontenc}
 \renewcommand{\ttdefault}{cmtt}
+\crefname{paragraph}{paragraph}{paragraphs}
 
 \begin{document}
 
@@ -63,8 +66,8 @@ as their widespread use has made them a target for malicious actors,
 with the platforms themselves being vulnerable because of their low computational power and
 rapid development cycles\cite{EmbeddedSecChallenges}.
 In this work, we aim to provide a set of security solutions that do not employ 
-heavy cryptographic primitives or complex remote attestation protocols, but rather
-focus on the use of simple and lightweight techniques that can be easily implemented
+heavy cryptographic primitives or complex protocols, but rather
+focus on the use of standalone techniques that can be easily implemented
 on resource-constrained devices.
 The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
 The use case could be a remote monitoring system, where the device is placed in a remote location and 
@@ -97,11 +100,12 @@ A high-level overview of the system architecture can be seen in \cref{fig:archit
 \subsection{Hardware Setup}
 The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 As an input device, we use the KY-038\cite{KY-038} microphone sound sensor.
-The sensor allows for both digital and analog output, with the digital output being a simple
-on/off signal and the analog output being a voltage signal that is proportional to the sound intensity.
+The sensor allows for both digital and analog output, with the digital output being a
+on/off signal for which a limit value can be set via the potensiometer and the analog output being a voltage signal between 0-5V that is proportional to the sound intensity.
 For our purposes, we use the analog output, converting the voltage signal to a digital one using the
 ESP32's analog-to-digital converter (ADC).
 For the receiver device, we used a simple mini-speaker that is connected to the ESP32's digital-to-analog converter (DAC).
+The microphone's input sensitivity according the data sheets is 48-66dB, around the level of a normal conversation.
 
 \subsection{Software and Firmware}
 
@@ -111,7 +115,7 @@ language. For cross-compiling our source code to the ESP platform we used the \t
 \texttt{xtensa-esp32-elf} compiler. 
 For the operating system, we used the FreeRTOS\cite{FreeRTOS} real-time operating system
 in order to take advantage of the provided task management features.
-\subsection{Communcation}
+\subsection{Communication}
 
 Communication between the two devices is done using the Message Queuing Telemetry Transport (MQTT) protocol\cite{MQTT_Survey}.
 MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low bandwidth.
@@ -120,6 +124,17 @@ Topics are strings used to identify the messages and are organized in a hierarch
 We used MQTT because of its simple programming model, as most of the communication logic is handled by the broker.
 For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
 
+MQTT three quality of service (QoS) levels:
+
+\begin{itemize}
+    \item QoS 0: At most once delivery. The message is sent only once and the publisher does not care if the message is received or not.
+    \item QoS 1: At least once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber at least once.
+    \item QoS 2: Exactly once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber exactly once.
+\end{itemize}
+
+Each of the quality of service levels has increasing overhead. In our project
+we used both QoS 0, as we consider our connection to the broker to be reliable 
+and missing some bytes of audio data is not critical.
 
 \section{System Implementation}
 \label{sec:system_implementation}
@@ -172,7 +187,7 @@ where it might be stored and analyzed.
 
 \subsubsection{Security Considerations}
 
-\paragraph{Communication}
+\paragraph{Communication (Data in Transit)}
 
 In order to make communication between the two devices and the MQTT broker
 trusted, we initiate an SSL (Secure Socket Layer) connection to the public broker. 
@@ -202,10 +217,11 @@ One way to do this is to use the Over-The-Air (OTA) update feature that the ESP3
 With this, one of the device partitions is reserved for storing the firmware, while the other is used for running the program.
 When an update is available, the device will download the new firmware and store it in the reserved partition.
 
-\paragraph{Message Encryption}
+\paragraph{Message Encryption (Data at Rest)}
+\label{par:message_encryption}
 
 Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted because of the possibility 
-of the communication channel being compromised (e.g through a Wi-Fi spoofing attack \cite{WifiSpoofing}, where an attacker 
+of the communication channel being compromised (e.g through a Wi-Fi spoofing attack (also known as an evil twin) \cite{WifiSpoofing}, where an attacker 
 impersonates a Wi-Fi access point by using the same SSID) or the data is stored inside a server.
 For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
 a common 32-byte pre-shared key between the two devices.
@@ -217,7 +233,7 @@ a simple obfuscation function that shuffles the keys deterministically before us
 making it so the key can not be \textit{easily} obtained from static inspection of the firmware.
 In our project, we employed two alternative obfuscation functions: one 
 using a simple shuffle routine and one using
-virtual machine based obfuscation\cite{VMObfuscation} with the the \textit{Tigress}\cite{Tigress} diversifying virtualizer/obfuscator.
+virtual machine based obfuscation\cite{VMObfuscation} with the \textit{Tigress}\cite{Tigress} diversifying virtualizer/obfuscator.
 This tool can be used to obfuscate the program logic using 
 a number of source to source transformations.\footnote{For our purposes, we used the \texttt{--transform=Virtualize} option.}
 Other alternatives would be to use a key exchange protocol such as Diffie-Hellman key exchange\cite{DiffieHellmanKeyExchange} to 
@@ -236,48 +252,65 @@ In addition, we added our own assertions in places where buffer overflows might 
 To avoid the possibility of extracting the firmware from the device,
 we enabled the flash encryption feature. This is done by enabling the
 corresponding eFuse bit\footnote{eFuse bits are one-time programmable bits that
-can be used to store system and user parameters. Thus, it is recommended to
-modify them at the latest possible stage of the development process.}. While
-there exist other more involved hardware-based reverse engineering
-countermeasures \cite{HardwareReverseEngineering}, we used one that the ESP32
-provides out-of-the-box.
-A software-oriented approach in order to mitigate the possibility of someone reverse-engineering the firmware would be to use
-a virtual machine-based approach\footnote{An popular project for virtualizing the x86 architecture can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}},
+can be used to store system and user parameters. 
+It is actually possible to change a settings parameter multiple times by having the setting 
+value be based on the parity of the \say{on} bits. In the ESP32, for example, the flash encryption setting 
+is based on the value of 8 eFuse bits. We can turn it from off to on and vice versa 4 times.
+}. A software-oriented approach in order to mitigate the possibility of someone reverse-engineering the firmware would be to use
+a virtual machine-based approach,
+% \footnote{An popular project for virtualizing the x86 architecture can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}}
 where the firmware is run inside a virtual machine that is hosted on the device.
+However, this kind of program transformation results in noticable performance losses.
+For that reason, we resorted to obfuscating a security critical routine as mentioned in \cref{par:message_encryption}.
 Using this approach, reverse engineering tools that rely on the analysis of
-assembly instructions would not be able to accurately recreate the program
-code.
+assembly instructions should not be able to accurately recreate the program
+code, even though progress is being done in VM-obfuscation reverse engineering \cite{VMReversing, UnpackingVirtualizationObfuscators}.
+% There are exist  \cite{HardwareReverseEngineering}, we used one that the ESP32
+% provides out-of-the-box.
 
 \section{Results and Evaluation}
 
-\subsection{Network Performance}
-
-
-
-\subsection{Security Analysis}
-
-Below is a table of the security considerations we took into account and the corresponding countermeasures we used.
+In \cref{tab:security_considerations} we summarize the security considerations we took into account and the corresponding countermeasures we used.
+In our security assessment, we iterated over core security considerations for IoT devices\cite{ComprehensiveSecurity} and applied countermeasures 
+to secure the various layer of our system.
 
 \begin{table}[h]
-    \centering
+\centering
 \begin{adjustbox}{width=\columnwidth,center}
-    \begin{tabular}{|l|l|}
-        \hline
-        \textbf{Security Consideration} & \textbf{Countermeasure} \\ \hline
-        Confidentiality of data in transit & SSL/TLS \\ \hline
-        Integrity of data in transit & SSL/TLS \\ \hline
-        Confidentiality of data at rest & AES encryption \\ \hline
-        Integrity of data at rest & AES encryption \\ \hline
-        Confidentiality of program logic & Flash encryption \\ \hline
-        Integrity of program logic & Flash encryption, Stack overflow checking \\ \hline
-        Confidentiality of program logic & Flash encryption, Obfuscation, Virtualization \\ \hline
-    \end{tabular}
+\begin{tabular}{|l|c||l|}
+\hline
+\textbf{Security Consideration} & \textbf{Possible Attacks} & \textbf{Countermeasure} \\ \hline
+Confidentiality of data in transit & Interception, Man-in-the-middle attacks          & SSL/TLS \\ \hline
+Integrity of data in transit       & Tampering, Man-in-the-middle attacks             & SSL/TLS \\ \hline
+Confidentiality of data at rest    & Unauthorized access, Data leakage                & AES encryption \\ \hline
+Integrity of data at rest          & Data corruption, Unauthorized modification       & AES encryption \\ \hline
+Confidentiality of program logic   & Reverse engineering, Unauthorized access         & Flash encryption \\ \hline
+Integrity of program logic         & Code injection, Buffer overflow attacks          & Flash encryption, Stack overflow checking \\ \hline
+Confidentiality of program logic   & Reverse engineering, Intellectual property theft & Flash encryption, Obfuscation, Virtualization \\ \hline
+\end{tabular}
 \end{adjustbox}
-    \caption{Security considerations and countermeasures.}
-    \label{tab:security_considerations}
+\caption{Security considerations and countermeasures.}
+\label{tab:security_considerations}
 \end{table}
 
-\subsection{Power Consumption}
+% \begin{figure}[h]
+% \begin{adjustbox}{width=\columnwidth}
+% \begin{tikzpicture}[
+%     block/.style={rectangle, draw, text width=\columnwidth, text centered, rounded corners, minimum height=1em},
+%     node distance=0.1cm,
+%     font=\footnotesize]
+
+%   % Define nodes with different colors
+%   \node [block, fill=blue!30] (transit) {\textbf{Data in Transit}\\Security: SSL/TLS\\Attacks: Interception, MITM};
+%   \node [block, fill=green!30, above=of transit] (rest) {Data at Rest\\Security: AES Encryption\\Attacks: Unauthorized Access, Data Leakage};
+%   \node [block, fill=orange!30, above=of rest] (logicConf) {Program Logic Confidentiality\\Security: Flash Encryption, Obfuscation, Virtualization\\Attacks: Reverse Engineering, IP Theft};
+%   \node [block, fill=purple!30, above=of logicConf] (logicInt) {Program Logic Integrity\\Security: Flash Encryption, Stack Overflow Checking\\Attacks: Code Injection, Buffer Overflow};
+
+% \end{tikzpicture}
+% \end{adjustbox}
+% \caption{Embedded System Security Layers}
+% \label{fig:security_layers}
+% \end{figure}
 
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
@@ -296,6 +329,9 @@ In particular, we:
     \item Enabled ESP32's flash encryption feature to avoid the possibility of extracting the firmware from the device.
 \end{itemize}
 
+In addition, through the choice of the MQTT protocol, our system can easily scale to multiple recording and playback devices
+with minimal alterations to our codebase.
+
 \section*{Acknowledgment}
 
 \thanks{We'd like to thank the DTU PRG group for providing us with some of the hardware and equipment for this project.}
@@ -306,7 +342,7 @@ In particular, we:
 \appendices
 \crefalias{section}{appendix}
 
-\appendix{Reverse Engineering ESP32 Firmware}
+\appendix{Reverse Engineering the ESP32 Firmware}
 \label{appendix:reverse_engineering}
 
 As proof of the necessity for taking precautions when shipping an embedded device, 
