@@ -14,7 +14,7 @@
 \usepackage{verbatim}
 \usepackage{adjustbox}
 \usepackage{tikz}
-\usetikzlibrary{positioning,shapes,arrows}
+\usetikzlibrary{positioning, shapes,arrows}
 
 \usepackage[outputdir=build]{minted}
 % \usemintedstyle{default}
@@ -75,11 +75,11 @@ the user can listen to an audio feed from their device. Applications such as bab
 In both of these cases, the confidentiality of the audio feed is very important and
 attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack, VideoSurvAttacks}.
 
-% This report is structured as follows: in \cref{sec:background}, 
+% This report is structured as follows: in \cref{sec: background}, 
 % we give a short overview of our project's goals while providing references to similar works. 
 % In \cref{sec:system_design}, we go into the design of the system, giving a high-level overview of the architecture and 
-% the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on it's performance, 
-% while also highligthing some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
+% the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on its performance, 
+% while also highlighting some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
 % we discuss the results of our work and propose some ideas for future work.
 
 \section{System Design}
@@ -87,7 +87,7 @@ attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack
 
 \subsection{Architecture}
 
-A high-level overview of the system architecture can be seen in \cref{fig:architecture}.
+A high-level overview of the system architecture can be seen in \cref{fig: architecture}.
 
 \begin{figure}[h]
     \hspace*{-0.4cm}
@@ -100,12 +100,12 @@ A high-level overview of the system architecture can be seen in \cref{fig:archit
 \subsection{Hardware Setup}
 The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 As an input device, we use the KY-038\cite{KY-038} microphone sound sensor.
-The sensor allows for both digital and analog output, with the digital output being a
-on/off signal for which a limit value can be set via the potensiometer and the analog output being a voltage signal between 0-5V that is proportional to the sound intensity.
+The sensor allows for both digital and analog output, with the digital output being an
+on/off signal for which a limit value can be set via the potentiometer and the analog output being a voltage signal between 0-5V that is proportional to the sound intensity.
 For our purposes, we use the analog output, converting the voltage signal to a digital one using the
 ESP32's analog-to-digital converter (ADC).
 For the receiver device, we used a simple mini-speaker that is connected to the ESP32's digital-to-analog converter (DAC).
-The microphone's input sensitivity according the data sheets is 48-66dB, around the level of a normal conversation.
+The microphone's input sensitivity according to the data sheets is 48-66dB, around the level of a normal conversation.
 
 \subsection{Software and Firmware}
 
@@ -124,7 +124,7 @@ Topics are strings used to identify the messages and are organized in a hierarch
 We used MQTT because of its simple programming model, as most of the communication logic is handled by the broker.
 For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
 
-MQTT three quality of service (QoS) levels:
+MQTT has three quality of service (QoS) levels:
 
 \begin{itemize}
     \item QoS 0: At most once delivery. The message is sent only once and the publisher does not care if the message is received or not.
@@ -260,11 +260,11 @@ is based on the value of 8 eFuse bits. We can turn it from off to on and vice ve
 a virtual machine-based approach,
 % \footnote{An popular project for virtualizing the x86 architecture can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}}
 where the firmware is run inside a virtual machine that is hosted on the device.
-However, this kind of program transformation results in noticable performance losses.
-For that reason, we resorted to obfuscating a security critical routine as mentioned in \cref{par:message_encryption}.
+However, this kind of program transformation results in noticeable performance losses.
+For that reason, we resorted to obfuscating a security-critical routine as mentioned in \cref{par:message_encryption}.
 Using this approach, reverse engineering tools that rely on the analysis of
 assembly instructions should not be able to accurately recreate the program
-code, even though progress is being done in VM-obfuscation reverse engineering \cite{VMReversing, UnpackingVirtualizationObfuscators}.
+code, even though progress is being made in VM-obfuscation reverse engineering \cite{VMReversing, UnpackingVirtualizationObfuscators}.
 % There are exist  \cite{HardwareReverseEngineering}, we used one that the ESP32
 % provides out-of-the-box.
 
@@ -272,7 +272,7 @@ code, even though progress is being done in VM-obfuscation reverse engineering \
 
 In \cref{tab:security_considerations} we summarize the security considerations we took into account and the corresponding countermeasures we used.
 In our security assessment, we iterated over core security considerations for IoT devices\cite{ComprehensiveSecurity} and applied countermeasures 
-to secure the various layer of our system.
+to secure the various layers of our system.
 
 \begin{table}[h]
 \centering
@@ -311,7 +311,31 @@ Confidentiality of program logic   & Reverse engineering, Intellectual property 
 % \caption{Embedded System Security Layers}
 % \label{fig:security_layers}
 % \end{figure}
+\paragraph{OFMC GUI}
+OFMC, a highly effective symbolic model check for security protocols\cite{basin2005ofmc}, we learned from 02239: Data Security course at DTU. To be specific, it is a graphical user interface providing protocols and attacks for analysis that has been developed by \'{U}lfur J\'{o}hann Edvardsson and Veronica Julie Lodskov Hoffmann, see https://github.com/ulfur88/OFMCGUI. Getting the input protocol, it will output the result of the corresponding attack trace or not. Therefore, we used it to check the possible network attack based on our security implementation of this assignment.
 
+\paragraph{Network Attack Simulation}
+We modeled the network data transmission format, as shown in Fig. 2.
+\begin{figure}[h]
+	\hspace*{0.4cm}
+	\includegraphics[width=0.8\linewidth]{assets/ofmc_protocol.png}
+	\vspace{-0.2cm}
+	\caption{NES protocol model check.}
+	\label{fig:architecture}
+\end{figure}  
+\newline
+In brief explanation, we utilized the pw(B) denoted as the private shared key, and agents A and B represented the two embedded devices, ESP32, respectively. The notation of "s" stands for the server. Given enough knowledge for agents and the server, they will be allowed to execute the actions. In the beginning, agent A sends the data encrypted by pw(B), and "s" then forwards the encrypted message to agent "B". After compiling, we got the attack trace in the following Fig. 3.\\ 
+\begin{figure}[h]
+	\hspace*{0.4cm}
+	\includegraphics[width=0.8\linewidth]{assets/attack trace.png}
+	\vspace{-0.2cm}
+	\caption{Attack trace.}
+	\label{fig:architecture}
+\end{figure}
+\newline  
+Here, "x20" is represented as agent "A", and "x26" is the agent "B". In particular, "i" is the intruder which attempts to attack the system. Besides, the "17" means an unknown agent. Overall, according to this attack trace, there will be a possibility that the intruder will pretend to be the server to intercept the message and then send it to an unauthorized agent rather than agent "B", leading to a breach of data confidentiality.\\ 
+Although the private key is generated inside our program, we have employed flash encryption to avoid key leakage. However, our mechanism for data transfer is that the first device sends the "aes" encrypted message to the MQTT server and then shares it with the second subscriber device. Through modeling, we found that there is an opportunity for breaking the system from attackers. In this case, we tried to make an experiment to stimulate this attack. Firstly, change the hot spot name on our smartphone into the wifi that the ESP32s connected. Subsequently, open the hot spot while shutting down the previous wifi router, and then restart the devices. We discovered that is exactly the type of attack that the OFMC has detected. Therefore, to ensure system security, we will consider this vulnerability to be our future effort for one of the improvements to build up confidentiality. 
+     
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
 
