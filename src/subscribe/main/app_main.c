@@ -49,22 +49,6 @@ extern const uint8_t mqtt_eclipseprojects_io_pem_start[]   asm("_binary_mqtt_pem
 #endif
 extern const uint8_t mqtt_eclipseprojects_io_pem_end[]   asm("_binary_mqtt_pem_end");
 
-//
-// Note: this function is for testing purposes only publishing part of the active partition
-//       (to be checked against the original binary)
-//
-/* static void send_binary(esp_mqtt_client_handle_t client) */
-/* { */
-/*     esp_partition_mmap_handle_t out_handle; */
-/*     const void *binary_address; */
-/*     const esp_partition_t *partition = esp_ota_get_running_partition(); */
-/*     esp_partition_mmap(partition, 0, partition->size, ESP_PARTITION_MMAP_DATA, &binary_address, &out_handle); */
-/*     // sending only the configured portion of the partition (if it's less than the partition size) */
-/*     int binary_size = MIN(CONFIG_BROKER_BIN_SIZE_TO_SEND, partition->size); */
-/*     int msg_id = esp_mqtt_client_publish(client, "/topic/binary", binary_address, binary_size, 0, 0); */
-/*     ESP_LOGI(TAG, "binary sent with msg_id=%d", msg_id); */
-/* } */
-
 /*
  * Event handler registered to receive MQTT events
  * This function is called by the MQTT client event loop.
@@ -90,8 +74,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
-        /* ESP_LOGI(TAG, "MQTT_EVENT_DATA"); */
-        /* printf("TOPIC=%.*s\r\n", event->topic_len, event->topic); */
         ESP_LOGI(TAG, "DATA: ");
         ESP_LOG_BUFFER_HEX(TAG, event->data, event->data_len);
         mic_data_len = event->data_len;
@@ -124,24 +106,24 @@ static void mic_out_start(void *arg)
     static const char *MICTAG = "MIC_TASK";
     ESP_LOGI(MICTAG, "DAC audio example start");
     ESP_LOGI(MICTAG, "--------------------------------------");
-    //dac_audio_init(dac_handle);
     static uint32_t cnt = 0;
     dac_continuous_handle_t dac_handle;
+    // Using APLL as clock source to get a wider frequency range
+    /* Assume the data in buffer is 'A B C D E F'
+        * DAC_CHANNEL_MODE_SIMUL:
+        *      - channel 0: A B C D E F
+        *      - channel 1: A B C D E F
+        * DAC_CHANNEL_MODE_ALTER:
+        *      - channel 0: A C E
+        *      - channel 1: B D F
+        */
     dac_continuous_config_t cont_cfg = {
         .chan_mask = DAC_CHANNEL_MASK_ALL,
         .desc_num = 4,
         .buf_size = 1024,
         .freq_hz = CONFIG_AUDIO_SAMPLE_RATE,
         .offset = 0,
-        .clk_src = DAC_DIGI_CLK_SRC_APLL,   // Using APLL as clock source to get a wider frequency range
-        /* Assume the data in buffer is 'A B C D E F'
-         * DAC_CHANNEL_MODE_SIMUL:
-         *      - channel 0: A B C D E F
-         *      - channel 1: A B C D E F
-         * DAC_CHANNEL_MODE_ALTER:
-         *      - channel 0: A C E
-         *      - channel 1: B D F
-         */
+        .clk_src = DAC_DIGI_CLK_SRC_APLL,   
         .chan_mode = DAC_CHANNEL_MODE_SIMUL,
     };
     /* Allocate continuous channels */
@@ -151,8 +133,6 @@ static void mic_out_start(void *arg)
     while(1)
     {
         ESP_LOGI(TAG, "Playing: ");
-        /* ESP_LOG_BUFFER_HEX(MICTAG, mic_data, mic_data_len); */
-        /* dac_write_data_synchronously(dac_handle, (uint8_t *)mic_data, mic_data_len); */
         dac_write_data_synchronously(dac_handle, mic_data, DAC_BUFFER_SIZE);
         ESP_LOGI(TAG, "Play count: %"PRIu32"\n", cnt++);
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -176,9 +156,7 @@ static void mqtt_app_start(void)
     /* TODO: Remove */
     while (true) 
 	{
-        /* int msg_id = esp_mqtt_client_subscribe(client, TOPIC_SUBSCRIBE, 0); */
         int delay = 1000;
-        /* ESP_LOGI(TAG, "subscribe successful, msg_id=%d client=%d", msg_id, CLIENT_ID); */
         vTaskDelay(delay / portTICK_PERIOD_MS);
     }
 }
@@ -201,18 +179,11 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-     */
     ESP_ERROR_CHECK(example_connect());
-
     /* Set client ID to some random integer. */
     CLIENT_ID = esp_random();
     ESP_LOGI(TAG, "client id: %d", CLIENT_ID);
-
     xTaskCreate(mic_out_start, "mic_task", 4096, NULL, 2, NULL);
-
     mqtt_app_start();
     vTaskStartScheduler();
 	while(1);
