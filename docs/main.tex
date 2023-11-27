@@ -28,7 +28,7 @@
 
 \begin{document}
 
-\title{Tone Identification and Playback System}
+\title{Zero Trust Sound Recording and Playback System}
 
 \author{\IEEEauthorblockN{Siyan Chen}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
@@ -87,7 +87,7 @@ attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack
 
 \subsection{Architecture}
 
-A high-level overview of the system architecture can be seen in \cref{fig: architecture}.
+A high-level overview of the system architecture can be seen in \cref{fig:architecture}.
 
 \begin{figure}[h]
     \hspace*{-0.4cm}
@@ -293,48 +293,19 @@ Confidentiality of program logic   & Reverse engineering, Intellectual property 
 \label{tab:security_considerations}
 \end{table}
 
-% \begin{figure}[h]
-% \begin{adjustbox}{width=\columnwidth}
-% \begin{tikzpicture}[
-%     block/.style={rectangle, draw, text width=\columnwidth, text centered, rounded corners, minimum height=1em},
-%     node distance=0.1cm,
-%     font=\footnotesize]
+\paragraph{Formal Protocol Security Proof}
+For a formal proof of our communication scheme we used
+OFMC \cite{basin2005ofmc}, a highly effective symbolic model checker for security protocols.
+Given a formal specification of a communication protocol, the OFMC prover is able to given an \say{attack trace}, showing how an attacker might be able to break the protocol.
+Therefore, we used it to check the possible network attack based on our security implementation of this assignment.
+We give a more detailed explanation of our process in \cref{appendix:formal_protocol_security_proof}.
 
-%   % Define nodes with different colors
-%   \node [block, fill=blue!30] (transit) {\textbf{Data in Transit}\\Security: SSL/TLS\\Attacks: Interception, MITM};
-%   \node [block, fill=green!30, above=of transit] (rest) {Data at Rest\\Security: AES Encryption\\Attacks: Unauthorized Access, Data Leakage};
-%   \node [block, fill=orange!30, above=of rest] (logicConf) {Program Logic Confidentiality\\Security: Flash Encryption, Obfuscation, Virtualization\\Attacks: Reverse Engineering, IP Theft};
-%   \node [block, fill=purple!30, above=of logicConf] (logicInt) {Program Logic Integrity\\Security: Flash Encryption, Stack Overflow Checking\\Attacks: Code Injection, Buffer Overflow};
-
-% \end{tikzpicture}
-% \end{adjustbox}
-% \caption{Embedded System Security Layers}
-% \label{fig:security_layers}
-% \end{figure}
-\paragraph{OFMC GUI}
-OFMC, a highly effective symbolic model check for security protocols\cite{basin2005ofmc}, we learned from 02239: Data Security course at DTU. To be specific, it is a graphical user interface providing protocols and attacks for analysis that has been developed by \'{U}lfur J\'{o}hann Edvardsson and Veronica Julie Lodskov Hoffmann, see https://github.com/ulfur88/OFMCGUI. Getting the input protocol, it will output the result of the corresponding attack trace or not. Therefore, we used it to check the possible network attack based on our security implementation of this assignment.
-
-\paragraph{Network Attack Simulation}
-We modeled the network data transmission format, as shown in Fig. 2.
-\begin{figure}[h]
-	\hspace*{0.4cm}
-	\includegraphics[width=0.8\linewidth]{assets/ofmc_protocol.png}
-	\vspace{-0.2cm}
-	\caption{NES protocol model check.}
-	\label{fig:architecture}
-\end{figure}  
-\newline
-In brief explanation, we utilized the pw(B) denoted as the private shared key, and agents A and B represented the two embedded devices, ESP32, respectively. The notation of "s" stands for the server. Given enough knowledge for agents and the server, they will be allowed to execute the actions. In the beginning, agent A sends the data encrypted by pw(B), and "s" then forwards the encrypted message to agent "B". After compiling, we got the attack trace in the following Fig. 3.\\ 
-\begin{figure}[h]
-	\hspace*{0.4cm}
-	\includegraphics[width=0.8\linewidth]{assets/attack trace.png}
-	\vspace{-0.2cm}
-	\caption{Attack trace.}
-	\label{fig:architecture}
-\end{figure}
-\newline  
-Here, "x20" is represented as agent "A", and "x26" is the agent "B". In particular, "i" is the intruder which attempts to attack the system. Besides, the "17" means an unknown agent. Overall, according to this attack trace, there will be a possibility that the intruder will pretend to be the server to intercept the message and then send it to an unauthorized agent rather than agent "B", leading to a breach of data confidentiality.\\ 
-Although the private key is generated inside our program, we have employed flash encryption to avoid key leakage. However, our mechanism for data transfer is that the first device sends the "aes" encrypted message to the MQTT server and then shares it with the second subscriber device. Through modeling, we found that there is an opportunity for breaking the system from attackers. In this case, we tried to make an experiment to stimulate this attack. Firstly, change the hot spot name on our smartphone into the wifi that the ESP32s connected. Subsequently, open the hot spot while shutting down the previous wifi router, and then restart the devices. We discovered that is exactly the type of attack that the OFMC has detected. Therefore, to ensure system security, we will consider this vulnerability to be our future effort for one of the improvements to build up confidentiality. 
+Through modeling, we found that there is an opportunity for breaking the system.
+We did an experiment to stimulate this attack (evil twin attack) in the real world.
+First, we create a hot spot on our smartphone into the WiFi with the same SSID as the one the ESP32 tries to connect to.
+Subsequently, open the hot spot while shutting down the previous WiFi router, and then restarting the devices.
+This is exactly the type of attack that the OFMC prover detected.
+Possible solutions to this attack is to verify the WiFi router's MAC address and to disallow the connection if the MAC address changes, somehow confirming with the user that this is intentional.
      
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
@@ -366,7 +337,7 @@ with minimal alterations to our codebase.
 \appendices
 \crefalias{section}{appendix}
 
-\appendix{Reverse Engineering the ESP32 Firmware}
+\section{Reverse Engineering the ESP32 Firmware}
 \label{appendix:reverse_engineering}
 
 As proof of the necessity for taking precautions when shipping an embedded device, 
@@ -403,5 +374,38 @@ An attacker can further attack the device by performing dynamic analysis using t
 by plugging to it the \texttt{gdb} debugger. 
 Using those tools, we can follow the program execution and extract the symmetric encryption key used for message encryption, 
 even if that key is not stored in the flash memory, but is generated at runtime.
+
+\section{Formal Protocol Security Proof}
+\label{appendix:formal_protocol_security_proof}
+
+
+\paragraph{Network Attack Simulation}
+We modeled the network data transmission format, as shown in \cref{fig:ofmc_protocol}
+\begin{figure}[h]
+	\hspace*{0.4cm}
+	\includegraphics[width=0.8\linewidth]{assets/ofmc_protocol.png}
+	\vspace{-0.2cm}
+	\caption{Formal protocol security proof.}
+	\label{fig:ofmc_protocol}
+\end{figure}  
+
+We utilized the pw(B) denoted as the private shared key, and agents A and B represented the two embedded devices, ESP32, respectively.
+The notation of "s" stands for the server.
+Given enough knowledge for agents and the server, they will be allowed to execute the actions.
+In the beginning, agent A sends the data encrypted by pw(B), and "s" then forwards the encrypted message to agent "B".
+After compiling, we got the attack trace as shown in \cref{fig:attack_trace}
+
+\begin{figure}[h]
+	\hspace*{0.4cm}
+	\includegraphics[width=0.8\linewidth]{assets/attack trace.png}
+	\vspace{-0.2cm}
+	\caption{Attack trace.}
+	\label{fig:attack_trace}
+\end{figure}
+
+Here, \texttt{x20} represents as agent \say{A} (the recording device), and \texttt{x26} is agent \say{B} (the playback device).
+The symbol \texttt{i} represents an \say{intruder}, the malicious agent and \texttt{17} is an unknown agent, which can be selected by the intruder.
+According to this attack trace, there is the possibility that an \say{intruder} will pretend to be the server, will intercept the message and then send it to an unauthorized agent rather than agent \say{B}, leading to a breach of data confidentiality.
+
 
 \end{document}
