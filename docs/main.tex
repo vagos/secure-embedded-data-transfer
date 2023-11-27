@@ -15,12 +15,15 @@
 \usepackage{adjustbox}
 \usepackage{tikz}
 \usetikzlibrary{positioning, shapes,arrows}
-
 \usepackage[outputdir=build]{minted}
 % \usemintedstyle{default}
 % \setminted{frame=single}
 % \setminted{framesep=2mm}
 % \setminted{fontsize=\footnotesize}
+\usepackage{titlesec}
+\titlespacing{\section}{0pt}{\parskip}{-\parskip}
+\titlespacing{\subsection}{0pt}{\parskip}{-\parskip}
+\titlespacing{\subsubsection}{0pt}{\parskip}{-\parskip}
 
 \usepackage[T1]{fontenc}
 \renewcommand{\ttdefault}{cmtt}
@@ -28,7 +31,7 @@
 
 \begin{document}
 
-\title{Zero Trust Sound Recording and Playback System}
+\title{Secure Sound Recording and Playback System}
 
 \author{\IEEEauthorblockN{Siyan Chen}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
@@ -121,20 +124,7 @@ Communication between the two devices is done using the Message Queuing Telemetr
 MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low bandwidth.
 A publisher sends a message to the broker, which then forwards the message to all the subscribers who are subscribed to a given topic.
 Topics are strings used to identify the messages and are organized in a hierarchical structure.
-We used MQTT because of its simple programming model, as most of the communication logic is handled by the broker.
-For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
-
-MQTT has three quality of service (QoS) levels:
-
-\begin{itemize}
-    \item QoS 0: At most once delivery. The message is sent only once and the publisher does not care if the message is received or not.
-    \item QoS 1: At least once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber at least once.
-    \item QoS 2: Exactly once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber exactly once.
-\end{itemize}
-
-Each of the quality of service levels has increasing overhead. In our project
-we used both QoS 0, as we consider our connection to the broker to be reliable 
-and missing some bytes of audio data is not critical.
+We used MQTT because of it's simple programming model.
 
 \section{System Implementation}
 \label{sec:system_implementation}
@@ -163,6 +153,22 @@ the available stack space for a given thread.
 We set our stack size to the size allocated minus the value returned by the function plus a safety margin.
 A more robust solution would also include a code coverage analysis\cite{CodeCoverage} of the program,
 making sure that there are no code paths where the stack overflows.
+
+\subsection{Communication}
+
+For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
+
+MQTT has three quality of service (QoS) levels:
+
+\begin{itemize}
+    \item QoS 0: At most once delivery. The message is sent only once and the publisher does not care if the message is received or not.
+    \item QoS 1: At least once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber at least once.
+    \item QoS 2: Exactly once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber exactly once.
+\end{itemize}
+
+Each of the quality of service levels has increasing overhead. In our project
+we used QoS 0, as we consider our connection to the broker to be reliable 
+and missing some bytes of audio data is not critical.
 
 \subsection{Security Analysis}
 \label{subsec:security_analysis}
@@ -270,6 +276,8 @@ code, even though progress is being made in VM-obfuscation reverse engineering \
 
 \section{Results and Evaluation}
 
+\subsection{Security Solutions}
+
 In \cref{tab:security_considerations} we summarize the security considerations we took into account and the corresponding countermeasures we used.
 In our security assessment, we iterated over core security considerations for IoT devices\cite{ComprehensiveSecurity} and applied countermeasures 
 to secure the various layers of our system.
@@ -293,7 +301,7 @@ Confidentiality of program logic   & Reverse engineering, Intellectual property 
 \label{tab:security_considerations}
 \end{table}
 
-\paragraph{Formal Protocol Security Proof}
+\subsection{Formal Protocol Security Proof}
 For a formal proof of our communication scheme we used
 OFMC \cite{basin2005ofmc}, a highly effective symbolic model checker for security protocols.
 Given a formal specification of a communication protocol, the OFMC prover is able to given an \say{attack trace}, showing how an attacker might be able to break the protocol.
@@ -305,7 +313,8 @@ We did an experiment to stimulate this attack (evil twin attack) in the real wor
 First, we create a hot spot on our smartphone into the WiFi with the same SSID as the one the ESP32 tries to connect to.
 Subsequently, open the hot spot while shutting down the previous WiFi router, and then restarting the devices.
 This is exactly the type of attack that the OFMC prover detected.
-Possible solutions to this attack is to verify the WiFi router's MAC address and to disallow the connection if the MAC address changes, somehow confirming with the user that this is intentional.
+Possible solutions to this attack is to verify the WiFi router's MAC address 
+and to disallow the connection if the MAC address changes, somehow confirming with the user that the change of WiFi is intentional.
      
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
@@ -374,38 +383,59 @@ An attacker can further attack the device by performing dynamic analysis using t
 by plugging to it the \texttt{gdb} debugger. 
 Using those tools, we can follow the program execution and extract the symmetric encryption key used for message encryption, 
 even if that key is not stored in the flash memory, but is generated at runtime.
+However, with the flash encryption feature enabled, as well as the obfuscation of the key generation routine,
+this attack becomes a lot more impractical.
 
 \section{Formal Protocol Security Proof}
 \label{appendix:formal_protocol_security_proof}
 
-
 \paragraph{Network Attack Simulation}
-We modeled the network data transmission format, as shown in \cref{fig:ofmc_protocol}
-\begin{figure}[h]
-	\hspace*{0.4cm}
-	\includegraphics[width=0.8\linewidth]{assets/ofmc_protocol.png}
-	\vspace{-0.2cm}
-	\caption{Formal protocol security proof.}
-	\label{fig:ofmc_protocol}
-\end{figure}  
 
-We utilized the pw(B) denoted as the private shared key, and agents A and B represented the two embedded devices, ESP32, respectively.
+\begin{listing}[h]
+\begin{minted}{python}
+Protocol: NES
+
+Types: Agent A,s,B;
+       Number Data;
+       Function aes;
+
+Knowledge: 
+       A: A, B, s, aes(A, B), aes(B);
+       B: A, s, aes(A, B), aes(B);
+       s: s, A, B;
+       where B!=s
+
+Actions:
+
+A->s: {|Data|}aes(B)
+s->B: {|Data|}aes(B)
+
+Goals:
+
+Data secret between A,B
+aes(A,B) guessable secret between A,B
+\end{minted}
+\caption{OFMC protocol specification.}
+\end{listing}
+
+We use \texttt{aes(B)} to denote the shared key, and agents A and B represented the two embedded devices, ESP32, respectively.
 The notation of "s" stands for the server.
-Given enough knowledge for agents and the server, they will be allowed to execute the actions.
-In the beginning, agent A sends the data encrypted by pw(B), and "s" then forwards the encrypted message to agent "B".
+A and B know the identity of the server because they connect to it while also providing a certificate.
+We make the assumption that the shared key is based on one of the two devices (this is to simulate the pre-shared key scheme that we use,
+where we choose the key in one of the devices and just copy it over to the other).
+In the beginning, agent A sends the data encrypted by aes(B), and "s" then forwards the encrypted message to agent "B".
 After compiling, we got the attack trace as shown in \cref{fig:attack_trace}
 
 \begin{figure}[h]
 	\hspace*{0.4cm}
 	\includegraphics[width=0.8\linewidth]{assets/attack trace.png}
 	\vspace{-0.2cm}
-	\caption{Attack trace.}
+	\caption{The protcol's attack trace.}
 	\label{fig:attack_trace}
 \end{figure}
 
 Here, \texttt{x20} represents as agent \say{A} (the recording device), and \texttt{x26} is agent \say{B} (the playback device).
 The symbol \texttt{i} represents an \say{intruder}, the malicious agent and \texttt{17} is an unknown agent, which can be selected by the intruder.
 According to this attack trace, there is the possibility that an \say{intruder} will pretend to be the server, will intercept the message and then send it to an unauthorized agent rather than agent \say{B}, leading to a breach of data confidentiality.
-
 
 \end{document}
