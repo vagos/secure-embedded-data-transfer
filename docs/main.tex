@@ -12,37 +12,44 @@
 \usepackage{cleveref}
 \usepackage{dirtytalk}
 \usepackage{verbatim}
-
+\usepackage{adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning, shapes,arrows}
 \usepackage[outputdir=build]{minted}
 % \usemintedstyle{default}
 % \setminted{frame=single}
 % \setminted{framesep=2mm}
 % \setminted{fontsize=\footnotesize}
+\usepackage{titlesec}
+\titlespacing{\section}{0pt}{\parskip}{-\parskip}
+\titlespacing{\subsection}{0pt}{\parskip}{-\parskip}
+\titlespacing{\subsubsection}{0pt}{\parskip}{-\parskip}
 
 \usepackage[T1]{fontenc}
 \renewcommand{\ttdefault}{cmtt}
+\crefname{paragraph}{paragraph}{paragraphs}
 
 \begin{document}
 
-\title{Networked Embedded Systems Practical Project}
+\title{Secure Sound Recording and Playback System}
 
 \author{\IEEEauthorblockN{Siyan Chen}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
-siyan@chen.com}
+s232894@dtu.dk}
 \and
 \IEEEauthorblockN{Evangelos Lamprou}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
-e.lamprou@upnet.gr}
+s232462@dtu.dk}
 }
 
 \maketitle
 
 \begin{abstract}
-    In this project, we present creation of an
+    In this project, we present the creation of an
     embedded network system using the popular ESP32 platform. The system serves
     the purpose of recording audio samples and facilitating their remote
     transmission over the Internet. We go into the design and implementation
-    of the sytem while simultaneously putting attention
+    of the system while simultaneously putting attention
     on pivotal security considerations that touch multiple
     layers of the architecture. 
 \end{abstract}
@@ -51,7 +58,7 @@ e.lamprou@upnet.gr}
 embedded network systems, security
 \end{IEEEkeywords}
 
-\section{Introduction}
+\section{Introduction and Project Objectives}
 
 Embedded network systems have burgeoned as critical assets across numerous
 domains, encompassing home automation, industrial monitoring, and beyond. 
@@ -62,30 +69,28 @@ as their widespread use has made them a target for malicious actors,
 with the platforms themselves being vulnerable because of their low computational power and
 rapid development cycles\cite{EmbeddedSecChallenges}.
 In this work, we aim to provide a set of security solutions that do not employ 
-heavy cryptographic primitives or complex remote attestation protocols, but rather
-focus on the use of simple and lightweight techniques that can be easily implemented
+heavy cryptographic primitives or complex protocols, but rather
+focus on the use of standalone techniques that can be easily implemented
 on resource-constrained devices.
-
-This report is structured as follows: in \cref{sec:background}, 
-we give a short overview of our project's goals while providing references to similar works. 
-In \cref{sec:system_design}, we go into the design of the system, giving a high-level overview of the architecture and 
-the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on it's performance, 
-while also highligthing some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
-we discuss the results of our work and propose some ideas for future work.
-
-\section{Project Objectives} % Project Objectives 
-\label{sec:background}
-
 The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
 The use case could be a remote monitoring system, where the device is placed in a remote location and 
 the user can listen to an audio feed from their device. Applications such as baby monitors or home security systems come to mind.
 In both of these cases, the confidentiality of the audio feed is very important and
 attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack, VideoSurvAttacks}.
 
+% This report is structured as follows: in \cref{sec: background}, 
+% we give a short overview of our project's goals while providing references to similar works. 
+% In \cref{sec:system_design}, we go into the design of the system, giving a high-level overview of the architecture and 
+% the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on its performance, 
+% while also highlighting some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
+% we discuss the results of our work and propose some ideas for future work.
+
 \section{System Design}
 \label{sec:system_design}
 
 \subsection{Architecture}
+
+A high-level overview of the system architecture can be seen in \cref{fig:architecture}.
 
 \begin{figure}[h]
     \hspace*{-0.4cm}
@@ -98,11 +103,12 @@ attacks on such systems have been demonstrated in the past \cite{BabyMonitorHack
 \subsection{Hardware Setup}
 The system consists of two ESP32\cite{ESP32_Manual} microcontrollers.
 As an input device, we use the KY-038\cite{KY-038} microphone sound sensor.
-The sensor allows for both digital and analog output, with the digital output being a simple
-on/off signal and the analog output being a voltage signal that is proportional to the sound intensity.
+The sensor allows for both digital and analog output, with the digital output being an
+on/off signal for which a limit value can be set via the potentiometer and the analog output being a voltage signal between 0-5V that is proportional to the sound intensity.
 For our purposes, we use the analog output, converting the voltage signal to a digital one using the
 ESP32's analog-to-digital converter (ADC).
 For the receiver device, we used a simple mini-speaker that is connected to the ESP32's digital-to-analog converter (DAC).
+The microphone's input sensitivity according to the data sheets is 48-66dB, around the level of a normal conversation.
 
 \subsection{Software and Firmware}
 
@@ -112,14 +118,13 @@ language. For cross-compiling our source code to the ESP platform we used the \t
 \texttt{xtensa-esp32-elf} compiler. 
 For the operating system, we used the FreeRTOS\cite{FreeRTOS} real-time operating system
 in order to take advantage of the provided task management features.
-\subsection{Communcation}
+\subsection{Communication}
 
 Communication between the two devices is done using the Message Queuing Telemetry Transport (MQTT) protocol\cite{MQTT_Survey}.
-MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low-bandwidth.
-A publisher sends a message to the broker, which then forwards the message to all the subscribers that are subscribed to a given topics.
+MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low bandwidth.
+A publisher sends a message to the broker, which then forwards the message to all the subscribers who are subscribed to a given topic.
 Topics are strings used to identify the messages and are organized in a hierarchical structure.
-We used MQTT because of it's simple programming model, as most of the communication logic is handled by the broker.
-For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
+We used MQTT because of it's simple programming model.
 
 \section{System Implementation}
 \label{sec:system_implementation}
@@ -131,15 +136,17 @@ The main program logic is separated into two files, one for the recording device
 The recording device is responsible for recording audio samples and sending them to the server.
 The playback device is responsible for receiving the audio samples from the server and playing them back.
 
-The FreeRTOS provided API allows us to easily create parallel tasks that are then scheduled by the operating system.
-We have a listening task and a action task for each of the devices.
+The FreeRTOS-provided API allows us to create parallel tasks that are then scheduled by the operating system.
+The FreeRTOS scheduler uses a preemptive priority-based scheduling algorithm\cite{FreeRTOS_Scheduling}, something which can be configured.
+For our application, we used the default configuration where preemption and time-slicing are enabled.
+We have a listening task and an action task for each of the devices.
 For the recording device, a task is responsible for recording audio samples and saving them 
-inside a circular buffer data structure. Asyncronously, a second task is responsible for
+inside a circular buffer data structure. Asynchronously, a second task is responsible for
 sending the samples to the server using the MQTT protocol.
 For the playback device, a task is responsible for receiving the samples from the server
 and another one for playback.
 
-One challenge we encoutered was choosing the correct stack size for each created thread.
+One challenge we encountered was choosing the correct stack size for each created thread.
 We wanted to use the minimum stack size possible.
 For that, we used the FreeRTOS \texttt{uxTaskGetStackHighWaterMark} function, which returns
 the available stack space for a given thread.
@@ -147,7 +154,21 @@ We set our stack size to the size allocated minus the value returned by the func
 A more robust solution would also include a code coverage analysis\cite{CodeCoverage} of the program,
 making sure that there are no code paths where the stack overflows.
 
+\subsection{Communication}
 
+For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
+
+MQTT has three quality of service (QoS) levels:
+
+\begin{itemize}
+    \item QoS 0: At most once delivery. The message is sent only once and the publisher does not care if the message is received or not.
+    \item QoS 1: At least once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber at least once.
+    \item QoS 2: Exactly once delivery. The message is sent until it is received by the broker. The broker will send the message to the subscriber exactly once.
+\end{itemize}
+
+Each of the quality of service levels has increasing overhead. In our project
+we used QoS 0, as we consider our connection to the broker to be reliable 
+and missing some bytes of audio data is not critical.
 
 \subsection{Security Analysis}
 \label{subsec:security_analysis}
@@ -159,7 +180,7 @@ We assume a strong software adversary that has physical access to the device.
 A persistent attacker might be able to extract the firmware from the device and
 analyze it. Such analysis can result in cryptographic keys and certificates being extracted from the device
 \footnote{In \cref{appendix:reverse_engineering} we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32 device.}, 
-to the proprietary program logic being reverse engineered.
+to the proprietary program logic being reverse-engineered.
 In addition, the device might be placed in an untrusted environment, where the communication as well 
 as other networking infrastructure might tampered with.
 An adversary might be able to \say{listen} to the communication between the two devices,
@@ -168,11 +189,11 @@ Thus, the adversary might be able to perform a wide range of network attacks suc
 as a DNS Cache Poisoning attack \cite{Dissanayake_2018}, the adversary might have access to the local router 
 settings, making a Domain Hijacking and Redirection attack \cite{DnsHijacking} trivial. In both of these attacks, 
 the data transferred from the recording device to the server might be redirected to a malicious server, 
-where the data might be stored and analyzed.
+where it might be stored and analyzed.
 
 \subsubsection{Security Considerations}
 
-\paragraph{Communication}
+\paragraph{Communication (Data in Transit)}
 
 In order to make communication between the two devices and the MQTT broker
 trusted, we initiate an SSL (Secure Socket Layer) connection to the public broker. 
@@ -181,26 +202,46 @@ ensures the confidentiality and integrity of data transmission.
 It achieves this by encrypting the data in transit, preventing
 unauthorized access and eavesdropping. The SSL connection also provides a means
 to verify the authenticity of the MQTT broker.
+We do this by using the \textit{MQTTS} (MQTT over TLS) protocol, which is done 
+by using the \texttt{mqtts://} prefix when connecting to the broker and specifying 
+a verification certificate
+\footnote{The \textit{openssl} utility can be used to obtain the certificate of a given domain.
+For example, \texttt{openssl s\_client -showcerts -connect broker.hivemq.com:8883} will print the certificate of \texttt{broker.hivemq.com}.}
+for our MQTT client.
 The use of certificates, and thus asymmetric encryption might be inappropriate in the scenario where more 
-memory constrained devices are part of the network. 
+memory-constrained devices are part of the network. 
 An alternative is the use of Transport Layer Security pre-shared key (TLS-PSK)\cite{rfc4279}, where the two parties 
-(device and broker) have a common key which they use to encrypt their communication channel.
+(device and broker) have a common key that they use to encrypt their communication channel.
 However, this approach requires the establishment of a key exchange routine before communication can start
 and creates protocol complexity.
+However, we do use the pre-shared key approach when encrypting the audio samples.
 
-\paragraph{Message Encryption}
+Regarding the update of the certificate for the MQTT broker.
+Domains that provide free SSL certificates, such as \texttt{letsencrypt.org}, have a short expiration time for their certificates (usually around 90 days).
+This means that the certificate inside the device's firmware needs to be updated regularly.
+One way to do this is to use the Over-The-Air (OTA) update feature that the ESP32 provides.
+With this, one of the device partitions is reserved for storing the firmware, while the other is used for running the program.
+When an update is available, the device will download the new firmware and store it in the reserved partition.
+
+\paragraph{Message Encryption (Data at Rest)}
+\label{par:message_encryption}
 
 Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted because of the possibility 
-of the communication channel being compromised (e.g through a Wi-Fi spoofing attack \cite{WifiSpoofing}, where an attacker 
-impersonates a Wi-Fi access point by using the same SSID) or the data being stored inside a server.
+of the communication channel being compromised (e.g through a Wi-Fi spoofing attack (also known as an evil twin) \cite{WifiSpoofing}, where an attacker 
+impersonates a Wi-Fi access point by using the same SSID) or the data is stored inside a server.
 For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
 a common 32-byte pre-shared key between the two devices.
-The ESP32 offers hardware accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c},
-with some attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
+The ESP32 offers hardware-accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c},
+with some (now patched) attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
 
 In our implementation, the key is stored inside the program's source code using 
-a simple obsfucation function that shuffles the keys deterministically before using it, essentially
-making it so the key can not be \textit{easily} obtained from static inspection of the firmeware.
+a simple obfuscation function that shuffles the keys deterministically before using it, essentially
+making it so the key can not be \textit{easily} obtained from static inspection of the firmware.
+In our project, we employed two alternative obfuscation functions: one 
+using a simple shuffle routine and one using
+virtual machine based obfuscation\cite{VMObfuscation} with the \textit{Tigress}\cite{Tigress} diversifying virtualizer/obfuscator.
+This tool can be used to obfuscate the program logic using 
+a number of source to source transformations.\footnote{For our purposes, we used the \texttt{--transform=Virtualize} option.}
 Other alternatives would be to use a key exchange protocol such as Diffie-Hellman key exchange\cite{DiffieHellmanKeyExchange} to 
 establish a common key between the two devices or store the key in one of ESP32's eFuse blocks.
 Each audio sample (a byte buffer of variable size) is encrypted using the key 
@@ -214,24 +255,67 @@ the audio samples) we enable the \texttt{CHECK\_FOR\_STACK\_OVERFLOW} option in 
 This way, the kernel will check that the stack pointer register is within the stack bounds on every context switch.
 In addition, we added our own assertions in places where buffer overflows might occur.
 
-In order to avoid the possibility of extracting the firmware from the device,
+To avoid the possibility of extracting the firmware from the device,
 we enabled the flash encryption feature. This is done by enabling the
-correspoding eFuse bit\footnote{eFuse bits are one-time programmable bits that
-can be used to store system and user parameters. Thus, it is recommended to
-modify them at the latest possible stage of the development process.}. While
-there exist other more involved hardware-based reverse engineering
-countermeasures \cite{HardwareReverseEngineering}, we used one that the ESP32
-provides out-of-the-box.
-A software-oriented approach in order to mitigate the possibility of someone reverse-engineering the firmware would be to use
-a virtual machine-based approach\footnote{An popular project for virtualizing the x86 architecure can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}},
+corresponding eFuse bit\footnote{eFuse bits are one-time programmable bits that
+can be used to store system and user parameters. 
+It is actually possible to change a settings parameter multiple times by having the setting 
+value be based on the parity of the \say{on} bits. In the ESP32, for example, the flash encryption setting 
+is based on the value of 8 eFuse bits. We can turn it from off to on and vice versa 4 times.
+}. A software-oriented approach in order to mitigate the possibility of someone reverse-engineering the firmware would be to use
+a virtual machine-based approach,
+% \footnote{An popular project for virtualizing the x86 architecture can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}}
 where the firmware is run inside a virtual machine that is hosted on the device.
-Using this approach, reverse engineering tools that rely on analysis of
-assembly instructions would not be able to accurately recreate the program
-code.
-% In our project, we tried to employ the \textit{Elk}\cite{Elk} lightweight javascript virtual machine
-% to implement the sample storing logic, but removed it in the final version due to time constraints.
+However, this kind of program transformation results in noticeable performance losses.
+For that reason, we resorted to obfuscating a security-critical routine as mentioned in \cref{par:message_encryption}.
+Using this approach, reverse engineering tools that rely on the analysis of
+assembly instructions should not be able to accurately recreate the program
+code, even though progress is being made in VM-obfuscation reverse engineering \cite{VMReversing, UnpackingVirtualizationObfuscators}.
+% There are exist  \cite{HardwareReverseEngineering}, we used one that the ESP32
+% provides out-of-the-box.
 
+\section{Results and Evaluation}
 
+\subsection{Security Solutions}
+
+In \cref{tab:security_considerations} we summarize the security considerations we took into account and the corresponding countermeasures we used.
+In our security assessment, we iterated over core security considerations for IoT devices\cite{ComprehensiveSecurity} and applied countermeasures 
+to secure the various layers of our system.
+
+\begin{table}[h]
+\centering
+\begin{adjustbox}{width=\columnwidth,center}
+\begin{tabular}{|l|c||l|}
+\hline
+\textbf{Security Consideration} & \textbf{Possible Attacks} & \textbf{Countermeasure} \\ \hline
+Confidentiality of data in transit & Interception, Man-in-the-middle attacks          & SSL/TLS \\ \hline
+Integrity of data in transit       & Tampering, Man-in-the-middle attacks             & SSL/TLS \\ \hline
+Confidentiality of data at rest    & Unauthorized access, Data leakage                & AES encryption \\ \hline
+Integrity of data at rest          & Data corruption, Unauthorized modification       & AES encryption \\ \hline
+Confidentiality of program logic   & Reverse engineering, Unauthorized access         & Flash encryption \\ \hline
+Integrity of program logic         & Code injection, Buffer overflow attacks          & Flash encryption, Stack overflow checking \\ \hline
+Confidentiality of program logic   & Reverse engineering, Intellectual property theft & Flash encryption, Obfuscation, Virtualization \\ \hline
+\end{tabular}
+\end{adjustbox}
+\caption{Security considerations and countermeasures.}
+\label{tab:security_considerations}
+\end{table}
+
+\subsection{Formal Protocol Security Proof}
+For a formal proof of our communication scheme we used
+OFMC \cite{basin2005ofmc}, a highly effective symbolic model checker for security protocols.
+Given a formal specification of a communication protocol, the OFMC prover is able to given an \say{attack trace}, showing how an attacker might be able to break the protocol.
+Therefore, we used it to check the possible network attack based on our security implementation of this assignment.
+We give a more detailed explanation of our process in \cref{appendix:formal_protocol_security_proof}.
+
+Through modeling, we found that there is an opportunity for breaking the system.
+We did an experiment to stimulate this attack (evil twin attack) in the real world.
+First, we create a hot spot on our smartphone into the WiFi with the same SSID as the one the ESP32 tries to connect to.
+Subsequently, open the hot spot while shutting down the previous WiFi router, and then restarting the devices.
+This is exactly the type of attack that the OFMC prover detected.
+Possible solutions to this attack is to verify the WiFi router's MAC address 
+and to disallow the connection if the MAC address changes, somehow confirming with the user that the change of WiFi is intentional.
+     
 \section{Discussion and Conclusions}
 \label{sec:discussion_and_conclusions}
 
@@ -245,9 +329,12 @@ In particular, we:
     \item Used SSL/TLS to secure the communication channel between the two devices and the MQTT broker.
     \item Used AES encryption to encrypt the audio samples before sending them over the network.
     \item Used FreeRTOS's stack overflow checking feature to avoid buffer overflow attacks.
-    \item Used a simple obsfucation function to hide the encryption key from static inspection of the firmware.
+    \item Used a simple obfuscation function to hide the encryption key from static inspection of the firmware.
     \item Enabled ESP32's flash encryption feature to avoid the possibility of extracting the firmware from the device.
 \end{itemize}
+
+In addition, through the choice of the MQTT protocol, our system can easily scale to multiple recording and playback devices
+with minimal alterations to our codebase.
 
 \section*{Acknowledgment}
 
@@ -259,11 +346,11 @@ In particular, we:
 \appendices
 \crefalias{section}{appendix}
 
-\appendix{Reverse Engineering ESP32 Firmware}
+\section{Reverse Engineering the ESP32 Firmware}
 \label{appendix:reverse_engineering}
 
 As proof of the necessity for taking precautions when shipping an embedded device, 
-we provide a tutorial-like section where we act as an attacker and attempt to reverse engineer the firmware of an ESP32
+we provide a tutorial-like section where we act as an attacker and attempt to reverse-engineer the firmware of an ESP32
 device in order to extract sensitive information.
 
 \begin{listing}[h]
@@ -277,17 +364,17 @@ $ ./esp32_image_parser.py create_elf flash.bin\
 \caption{The sequence commands for extracting the flash contents and converting them to an ELF file.}
 \end{listing}
 
-After gettings the device's firmeware into ELF format, we can use a plethora of tools 
-to reverse engineer the underlying program. 
-In this example, we will conduct a static analysis of the binary using the popular Ghidra\cite{Ghidra,GhidraBook} analysis tool.
+After getting the device's firmware into ELF format, we can use a plethora of tools 
+to reverse-engineer the underlying program. 
+In this example, we will conduct a static analysis of the binary using the popular Ghidra\cite{Ghidra, GhidraBook} analysis tool.
 We use the \texttt{ghidra-xtensa}\footnote{\url{https://github.com/yath/ghidra-xtensa}} processor,
 which adds support for the Xtensa architecture, the architecture used by the ESP32.
 
 \begin{figure}[h]
     \centering
     \fbox{\includegraphics[width=.9\linewidth]{assets/ghidra.png}}
-    \caption{Screeshot inside Ghidra where we are able to read the used certificate. Simmilalry, 
-    by inspecting the \texttt{rodata} flash section we can find the broker domain the device is conncectiing to, the 
+    \caption{A screenshot inside Ghidra where we are able to read the used certificate. Similarly, 
+    by inspecting the \texttt{rodata} flash section we can find the broker domain the device is connecting to, the 
     symmetric encryption key used for message encryption.}
     \label{fig:ghidra}
 \end{figure}
@@ -295,6 +382,60 @@ which adds support for the Xtensa architecture, the architecture used by the ESP
 An attacker can further attack the device by performing dynamic analysis using the \texttt{qemu-xtensa} emulator
 by plugging to it the \texttt{gdb} debugger. 
 Using those tools, we can follow the program execution and extract the symmetric encryption key used for message encryption, 
-even is that key is not stored in the flash memory, but is generated at runtime.
+even if that key is not stored in the flash memory, but is generated at runtime.
+However, with the flash encryption feature enabled, as well as the obfuscation of the key generation routine,
+this attack becomes a lot more impractical.
+
+\section{Formal Protocol Security Proof}
+\label{appendix:formal_protocol_security_proof}
+
+\paragraph{Network Attack Simulation}
+
+\begin{listing}[h]
+\begin{minted}{python}
+Protocol: NES
+
+Types: Agent A,s,B;
+       Number Data;
+       Function aes;
+
+Knowledge: 
+       A: A, B, s, aes(A, B), aes(B);
+       B: A, s, aes(A, B), aes(B);
+       s: s, A, B;
+       where B!=s
+
+Actions:
+
+A->s: {|Data|}aes(B)
+s->B: {|Data|}aes(B)
+
+Goals:
+
+Data secret between A,B
+aes(A,B) guessable secret between A,B
+\end{minted}
+\caption{OFMC protocol specification.}
+\end{listing}
+
+We use \texttt{aes(B)} to denote the shared key, and agents A and B represented the two embedded devices, ESP32, respectively.
+The notation of "s" stands for the server.
+A and B know the identity of the server because they connect to it while also providing a certificate.
+We make the assumption that the shared key is based on one of the two devices (this is to simulate the pre-shared key scheme that we use,
+where we choose the key in one of the devices and just copy it over to the other).
+In the beginning, agent A sends the data encrypted by aes(B), and "s" then forwards the encrypted message to agent "B".
+After compiling, we got the attack trace as shown in \cref{fig:attack_trace}
+
+\begin{figure}[h]
+	\hspace*{0.4cm}
+	\includegraphics[width=0.8\linewidth]{assets/attack trace.png}
+	\vspace{-0.2cm}
+	\caption{The protcol's attack trace.}
+	\label{fig:attack_trace}
+\end{figure}
+
+Here, \texttt{x20} represents as agent \say{A} (the recording device), and \texttt{x26} is agent \say{B} (the playback device).
+The symbol \texttt{i} represents an \say{intruder}, the malicious agent and \texttt{17} is an unknown agent, which can be selected by the intruder.
+According to this attack trace, there is the possibility that an \say{intruder} will pretend to be the server, will intercept the message and then send it to an unauthorized agent rather than agent \say{B}, leading to a breach of data confidentiality.
 
 \end{document}

@@ -1,0 +1,21 @@
+Protocol: NES
+
+Types: Agent A,s,B;
+       Number Data;
+       Function aes;
+
+Knowledge: 
+       A: A,B,s, aes(A, B), aes(B);
+       B: A,s, aes(A, B), aes(B);
+       s: s,A,B;
+       where B!=s
+
+Actions:
+
+A->s: {|Data|}aes(B)
+s->B: {|Data|}aes(B)
+
+Goals:
+
+Data secret between A,B
+aes(A,B) guessable secret between A,B
