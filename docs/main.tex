@@ -31,7 +31,11 @@
 
 \begin{document}
 
+<<<<<<< Updated upstream
 \title{Secure Sound Recording and Playback System}
+=======
+\title{Tone Identification and Playback System}
+>>>>>>> Stashed changes
 
 \author{\IEEEauthorblockN{Siyan Chen}
 \IEEEauthorblockA{\textit{Technical University of Denmark} \\
@@ -72,6 +76,20 @@ In this work, we aim to provide a set of security solutions that do not employ
 heavy cryptographic primitives or complex protocols, but rather
 focus on the use of standalone techniques that can be easily implemented
 on resource-constrained devices.
+<<<<<<< Updated upstream
+=======
+
+% This report is structured as follows: in \cref{sec:background}, 
+% we give a short overview of our project's goals while providing references to similar works. 
+% In \cref{sec:system_design}, we go into the design of the system, giving a high-level overview of the architecture and 
+% the components used. Then, in \cref{sec:system_implementation}, we go over the final implementation and comment on it's performance, 
+% while also highligthing some of the security considerations we took into account. Finally, in \cref{sec:discussion_and_conclusions},
+% we discuss the results of our work and propose some ideas for future work.
+
+\section{Project Objectives} % Project Objectives 
+\label{sec:background}
+
+>>>>>>> Stashed changes
 The goal of this project is to create a networked embedded system that can record audio samples and transmit them over the Internet.
 The use case could be a remote monitoring system, where the device is placed in a remote location and 
 the user can listen to an audio feed from their device. Applications such as baby monitors or home security systems come to mind.
@@ -124,7 +142,12 @@ Communication between the two devices is done using the Message Queuing Telemetr
 MQTT is a lightweight publish/subscribe messaging protocol that is designed for constrained devices and low bandwidth.
 A publisher sends a message to the broker, which then forwards the message to all the subscribers who are subscribed to a given topic.
 Topics are strings used to identify the messages and are organized in a hierarchical structure.
+<<<<<<< Updated upstream
 We used MQTT because of it's simple programming model.
+=======
+We used MQTT because of its simple programming model, as most of the communication logic is handled by the broker.
+For our project, we used a free public broker\footnote{hiveMQ: \url{https://www.hivemq.com/public-mqtt-broker/}}.
+>>>>>>> Stashed changes
 
 \section{System Implementation}
 \label{sec:system_implementation}
@@ -136,9 +159,13 @@ The main program logic is separated into two files, one for the recording device
 The recording device is responsible for recording audio samples and sending them to the server.
 The playback device is responsible for receiving the audio samples from the server and playing them back.
 
+<<<<<<< Updated upstream
 The FreeRTOS-provided API allows us to create parallel tasks that are then scheduled by the operating system.
 The FreeRTOS scheduler uses a preemptive priority-based scheduling algorithm\cite{FreeRTOS_Scheduling}, something which can be configured.
 For our application, we used the default configuration where preemption and time-slicing are enabled.
+=======
+The FreeRTOS-provided API allows us to easily create parallel tasks that are then scheduled by the operating system.
+>>>>>>> Stashed changes
 We have a listening task and an action task for each of the devices.
 For the recording device, a task is responsible for recording audio samples and saving them 
 inside a circular buffer data structure. Asynchronously, a second task is responsible for
@@ -227,21 +254,32 @@ When an update is available, the device will download the new firmware and store
 \label{par:message_encryption}
 
 Even if the communication between the two parties is (apparently) secured, data still needs to be encrypted because of the possibility 
+<<<<<<< Updated upstream
 of the communication channel being compromised (e.g through a Wi-Fi spoofing attack (also known as an evil twin) \cite{WifiSpoofing}, where an attacker 
+=======
+of the communication channel being compromised (e.g through a Wi-Fi spoofing attack \cite{WifiSpoofing}, where an attacker 
+>>>>>>> Stashed changes
 impersonates a Wi-Fi access point by using the same SSID) or the data is stored inside a server.
 For message encryption, we use the Advanced Encryption Standard (AES) on cipher feedback (CFB) mode using 
 a common 32-byte pre-shared key between the two devices.
 The ESP32 offers hardware-accelerated AES encryption and decryption routines\footnote{The ESP-IDF implementation of the AES routine can be found in \texttt{components/mbedtls/port/aes/block/esp\_aes.c},
+<<<<<<< Updated upstream
 with some (now patched) attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
+=======
+with some attacks on the implementation being presented in \cite{PwnEsp32Crypto}.}.
+>>>>>>> Stashed changes
 
 In our implementation, the key is stored inside the program's source code using 
 a simple obfuscation function that shuffles the keys deterministically before using it, essentially
 making it so the key can not be \textit{easily} obtained from static inspection of the firmware.
+<<<<<<< Updated upstream
 In our project, we employed two alternative obfuscation functions: one 
 using a simple shuffle routine and one using
 virtual machine based obfuscation\cite{VMObfuscation} with the \textit{Tigress}\cite{Tigress} diversifying virtualizer/obfuscator.
 This tool can be used to obfuscate the program logic using 
 a number of source to source transformations.\footnote{For our purposes, we used the \texttt{--transform=Virtualize} option.}
+=======
+>>>>>>> Stashed changes
 Other alternatives would be to use a key exchange protocol such as Diffie-Hellman key exchange\cite{DiffieHellmanKeyExchange} to 
 establish a common key between the two devices or store the key in one of ESP32's eFuse blocks.
 Each audio sample (a byte buffer of variable size) is encrypted using the key 
@@ -258,6 +296,7 @@ In addition, we added our own assertions in places where buffer overflows might 
 To avoid the possibility of extracting the firmware from the device,
 we enabled the flash encryption feature. This is done by enabling the
 corresponding eFuse bit\footnote{eFuse bits are one-time programmable bits that
+<<<<<<< Updated upstream
 can be used to store system and user parameters. 
 It is actually possible to change a settings parameter multiple times by having the setting 
 value be based on the parity of the \say{on} bits. In the ESP32, for example, the flash encryption setting 
@@ -273,6 +312,21 @@ assembly instructions should not be able to accurately recreate the program
 code, even though progress is being made in VM-obfuscation reverse engineering \cite{VMReversing, UnpackingVirtualizationObfuscators}.
 % There are exist  \cite{HardwareReverseEngineering}, we used one that the ESP32
 % provides out-of-the-box.
+=======
+can be used to store system and user parameters. Thus, it is recommended to
+modify them at the latest possible stage of the development process.}. While
+there exist other more involved hardware-based reverse engineering
+countermeasures \cite{HardwareReverseEngineering}, we used one that the ESP32
+provides out-of-the-box.
+A software-oriented approach in order to mitigate the possibility of someone reverse-engineering the firmware would be to use
+a virtual machine-based approach\footnote{An popular project for virtualizing the x86 architecture can be found at \url{https://github.com/rwfpl/rewolf-x86-virtualizer}},
+where the firmware is run inside a virtual machine that is hosted on the device.
+Using this approach, reverse engineering tools that rely on the analysis of
+assembly instructions would not be able to accurately recreate the program
+code.
+% In our project, we tried to employ the \textit{Elk}\cite{Elk} lightweight javascript virtual machine
+% to implement the sample storing logic, but removed it in the final version due to time constraints.
+>>>>>>> Stashed changes
 
 \section{Results and Evaluation}
 
@@ -383,6 +437,7 @@ An attacker can further attack the device by performing dynamic analysis using t
 by plugging to it the \texttt{gdb} debugger. 
 Using those tools, we can follow the program execution and extract the symmetric encryption key used for message encryption, 
 even if that key is not stored in the flash memory, but is generated at runtime.
+<<<<<<< Updated upstream
 However, with the flash encryption feature enabled, as well as the obfuscation of the key generation routine,
 this attack becomes a lot more impractical.
 
@@ -437,5 +492,7 @@ After compiling, we got the attack trace as shown in \cref{fig:attack_trace}
 Here, \texttt{x20} represents as agent \say{A} (the recording device), and \texttt{x26} is agent \say{B} (the playback device).
 The symbol \texttt{i} represents an \say{intruder}, the malicious agent and \texttt{17} is an unknown agent, which can be selected by the intruder.
 According to this attack trace, there is the possibility that an \say{intruder} will pretend to be the server, will intercept the message and then send it to an unauthorized agent rather than agent \say{B}, leading to a breach of data confidentiality.
+=======
+>>>>>>> Stashed changes
 
 \end{document}
